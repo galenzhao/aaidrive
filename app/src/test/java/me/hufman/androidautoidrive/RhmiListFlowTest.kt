@@ -1,6 +1,7 @@
 package me.hufman.androidautoidrive
 
 import de.bmw.idrive.BMWRemoting
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -12,6 +13,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class RhmiListFlowTest {
 	val sourceData = (0 until 5).map { index ->
 		Channel<Int>(capacity=1).also {

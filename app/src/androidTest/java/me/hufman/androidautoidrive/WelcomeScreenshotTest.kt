@@ -1,5 +1,7 @@
 package me.hufman.androidautoidrive
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import androidx.test.annotation.UiThreadTest
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
@@ -8,7 +10,6 @@ import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.ViewMatchers.*
 import androidx.test.ext.junit.rules.activityScenarioRule
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.runner.screenshot.Screenshot
 import me.hufman.androidautoidrive.R.id.*
 import me.hufman.androidautoidrive.phoneui.NavHostActivity
 import me.hufman.androidautoidrive.phoneui.WelcomeActivity
@@ -48,11 +49,11 @@ class WelcomeScreenshotTest {
 
 	val processor = PrivateScreenshotProcessor(context)
 	fun screenshot(name: String) {
-		activityScenario.scenario.onActivity {
-			Screenshot.capture(it).apply {
-				this.name = name
-				process(setOf(processor))
-			}
+		activityScenario.scenario.onActivity { activity ->
+			val view = activity.window.decorView.rootView
+			val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+			view.draw(Canvas(bitmap))
+			processor.save(name, bitmap)
 		}
 	}
 

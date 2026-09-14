@@ -293,7 +293,7 @@ class CarDetailedInfo(carCapabilities: Map<String, Any?>, cdsMetrics: CDSMetrics
 		put(L.CARINFO_TITLE_DRIVING, drivingFields)
 		put(L.CARINFO_TITLE_SPORT, sportFields)
 	}
-	val advancedCategories = LinkedHashMap<String, List<Flow<String>>>().apply {
+	private val cdsAdvancedCategories = LinkedHashMap<String, List<Flow<String>>>().apply {
 		put(L.CARINFO_TITLE, overviewFields)
 		put(L.CARINFO_TITLE_DRIVING + " ", drivingAdvancedFields)   // slightly different key for the allCategories
 
@@ -304,7 +304,23 @@ class CarDetailedInfo(carCapabilities: Map<String, Any?>, cdsMetrics: CDSMetrics
 		put(L.CARINFO_TITLE_WINDOWS, windowFields)
 		put(L.CARINFO_TITLE_TRAVEL, travelFields)
 	}
-	val allCategories = basicCategories + advancedCategories
+
+	/** CDS pages plus dynamic Torque OBD pages (chunked). */
+	val advancedCategories: LinkedHashMap<String, List<Flow<String>>>
+		get() = LinkedHashMap(cdsAdvancedCategories).also { map ->
+			me.hufman.androidautoidrive.obd.TorqueObdController.buildCategoryPages().forEach { (title, fields) ->
+				map[title] = fields
+			}
+		}
+
+	val allCategories: Map<String, List<Flow<String>>>
+		get() = basicCategories + advancedCategories
+
 	val category = MutableStateFlow(allCategories.keys.first())
-	val categoryFields: Flow<List<Flow<String>>> = category.map { allCategories[it] ?: emptyList() }
+	val categoryFields: Flow<List<Flow<String>>> = combine(
+		category,
+		me.hufman.androidautoidrive.obd.TorqueObdController.pagesRevision
+	) { title, _ ->
+		allCategories[title] ?: emptyList()
+	}
 }

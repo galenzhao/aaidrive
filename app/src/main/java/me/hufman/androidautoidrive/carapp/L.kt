@@ -22,6 +22,7 @@ object L {
 	val CARINFO_TITLE_WINDOWS by StringResourceDelegate("Windows Info")
 	val CARINFO_TITLE_AC by StringResourceDelegate("Air Condition Info")
 	val CARINFO_TITLE_TRAVEL by StringResourceDelegate("Travel Info")
+	val CARINFO_TITLE_OBD by StringResourceDelegate("OBD")
 	val CARINFO_ENGINE by StringResourceDelegate("Engine")
 	val CARINFO_OIL by StringResourceDelegate("Oil")
 	val CARINFO_EXCHANGER by StringResourceDelegate("HVAC")

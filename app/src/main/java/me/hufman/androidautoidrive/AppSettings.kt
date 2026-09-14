@@ -143,7 +143,12 @@ interface AppSettings {
 		DIMENSIONS_PADDING_TOP("Dimensions_Padding_Top", "", "Force RHMIDimensions to a specific paddingTop"),
 		DIMENSIONS_MARGIN_RIGHT("Dimensions_Margin_Right", "", "Force RHMIDimensions to a specific marginRight"),
 		BTFETCHUUIDSWITHSDP("btfetchUuidsWithSdp","5000",""),
-		ITorqueService("ITorqueService","0",""),
+		/** Enable Torque Pro OBD bridge for car-info OBD pages */
+		TORQUE_OBD_ENABLED("Torque_OBD_Enabled", "false", "Bind Torque and show OBD pages in car info"),
+		/** JSON array of Torque PID id strings selected for display */
+		TORQUE_OBD_PIDS("Torque_OBD_PIDs", "[]", "Selected Torque PID ids for car OBD pages"),
+		/** ACTIVE | ECU_SUPPORTED | ALL — catalog mode when refreshing from Torque */
+		TORQUE_OBD_LIST_MODE("Torque_OBD_List_Mode", "ACTIVE", "Which Torque PID list to show in settings"),
 		MUSIC_SEARCH_QUERY_HISTORY("Music_Search_Query_History","", "Music service search query history"),
 		MINFRAMETIME("minFrameTime","1000",""),
 		compressQuality("compressQuality","30",""),

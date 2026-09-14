@@ -1,19 +1,18 @@
 package me.hufman.androidautoidrive.phoneui
 
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import androidx.activity.addCallback
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentManager
-import androidx.fragment.app.FragmentStatePagerAdapter
-import androidx.viewpager.widget.ViewPager
-import com.google.android.material.navigation.NavigationView
+import androidx.fragment.app.FragmentActivity
+import androidx.viewpager2.adapter.FragmentStateAdapter
+import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.tabs.TabLayout
+import com.google.android.material.tabs.TabLayoutMediator
 import me.hufman.androidautoidrive.R
 import me.hufman.androidautoidrive.databinding.MusicPlayerBinding
 import me.hufman.androidautoidrive.music.MusicAppDiscovery
@@ -52,29 +51,31 @@ class MusicPlayerActivity: AppCompatActivity() {
 		setSupportActionBar(navToolbar)
 		val origPaddingTop = navToolbar.paddingTop
 		navToolbar.setOnApplyWindowInsetsListener { v, insets ->
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-				v.updatePadding(top = origPaddingTop + insets.systemWindowInsets.top)
-			}
+			val compat = WindowInsetsCompat.toWindowInsetsCompat(insets, v)
+			val top = compat.getInsets(WindowInsetsCompat.Type.systemBars()).top
+			v.updatePadding(top = origPaddingTop + top)
 			insets
 		}
 
-		val pgrMusicPlayer = findViewById<ViewPager>(R.id.pgrMusicPlayer)
+		val pgrMusicPlayer = findViewById<ViewPager2>(R.id.pgrMusicPlayer)
 		musicPlayerController.viewPager = pgrMusicPlayer
 
 		// set up the paging
-		val adapter = MusicPlayerPagerAdapter(supportFragmentManager)
+		val adapter = MusicPlayerPagerAdapter(this)
 		pgrMusicPlayer.adapter = adapter
 		pgrMusicPlayer.offscreenPageLimit = 2
-		findViewById<TabLayout>(R.id.tabMusicPlayer).setupWithViewPager(pgrMusicPlayer)
+		TabLayoutMediator(findViewById(R.id.tabMusicPlayer), pgrMusicPlayer) { tab, position ->
+			tab.text = adapter.getPageTitle(position)
+		}.attach()
 
 		onBackPressedDispatcher.addCallback {
-			val currentItem = pgrMusicPlayer?.currentItem ?: 0
+			val currentItem = pgrMusicPlayer.currentItem
 			if (currentItem == 0) {
 				this.isEnabled = false
 				onBackPressedDispatcher.onBackPressed()
 			} else if (currentItem == 1) {
-				val container = (pgrMusicPlayer.adapter as MusicPlayerPagerAdapter).getItem(1) as MusicBrowseFragment
-				val popped = container.onBackPressed()
+				val container = adapter.getFragment(1) as? MusicBrowseFragment
+				val popped = container?.onBackPressed() == true
 				if (!popped) {
 					musicPlayerController.showNowPlaying()
 				}
@@ -101,23 +102,24 @@ class MusicPlayerActivity: AppCompatActivity() {
 	}
 }
 
-class MusicPlayerPagerAdapter(fm: FragmentManager): FragmentStatePagerAdapter(fm, BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT) {
-	val tabs = LinkedHashMap<String, Fragment>(4).apply {
-		this["Now Playing"] = MusicNowPlayingFragment()
-		this["Browse"] = MusicBrowseFragment.newInstance(MusicBrowsePageFragment.newInstance(null))
-		this["Queue"] = MusicQueueFragment()
-		this["Search"] = MusicSearchFragment()
+class MusicPlayerPagerAdapter(private val fragmentActivity: FragmentActivity): FragmentStateAdapter(fragmentActivity) {
+	private val titles = listOf("Now Playing", "Browse", "Queue", "Search")
+
+	override fun getItemCount(): Int = titles.size
+
+	fun getPageTitle(position: Int): CharSequence = titles[position]
+
+	override fun createFragment(position: Int): Fragment {
+		return when (position) {
+			0 -> MusicNowPlayingFragment()
+			1 -> MusicBrowseFragment.newInstance(MusicBrowsePageFragment.newInstance(null))
+			2 -> MusicQueueFragment()
+			3 -> MusicSearchFragment()
+			else -> throw IllegalArgumentException("Unknown music player page $position")
+		}
 	}
 
-	override fun getCount(): Int {
-		return tabs.size
-	}
-
-	override fun getPageTitle(position: Int): CharSequence {
-		return tabs.keys.elementAt(position)
-	}
-
-	override fun getItem(index: Int): Fragment {
-		return tabs.values.elementAt(index)
+	fun getFragment(position: Int): Fragment? {
+		return fragmentActivity.supportFragmentManager.findFragmentByTag("f$position")
 	}
 }

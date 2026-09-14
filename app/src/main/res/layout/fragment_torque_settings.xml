@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <data class="TorqueSettingsBinding">
+        <variable
+            name="viewModel"
+            type="me.hufman.androidautoidrive.phoneui.viewmodels.TorqueSettingsModel" />
+        <import type="me.hufman.androidautoidrive.obd.ObdListMode" />
+        <import type="android.view.View" />
+    </data>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="@dimen/pane_vertical_margin">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="@dimen/settings_vertical_margin"
+            android:textAppearance="?attr/textAppearanceSubtitle1"
+            android:text="@string/lbl_torque_obd_title" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="@dimen/settings_vertical_margin"
+            android:text="@string/lbl_torque_obd_description" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:paddingBottom="@dimen/settings_vertical_margin"
+            android:text="@string/lbl_torque_obd_enabled"
+            android:checked="@={viewModel.enabled}" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="@dimen/settings_vertical_margin"
+            android:text="@{viewModel.statusText}" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="@dimen/settings_vertical_margin"
+            android:text="@{viewModel.selectedCountText}" />
+
+        <RadioGroup
+            android:id="@+id/torqueListMode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingBottom="@dimen/settings_vertical_margin">
+
+            <RadioButton
+                android:id="@+id/torqueModeActive"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/lbl_torque_obd_mode_active" />
+
+            <RadioButton
+                android:id="@+id/torqueModeEcu"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/lbl_torque_obd_mode_ecu" />
+
+            <RadioButton
+                android:id="@+id/torqueModeAll"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/lbl_torque_obd_mode_all" />
+        </RadioGroup>
+
+        <Button
+            android:id="@+id/btnTorqueRefresh"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="@dimen/settings_vertical_margin"
+            android:minHeight="48dp"
+            android:text="@string/lbl_torque_obd_refresh" />
+
+        <TextView
+            android:id="@+id/torqueEmpty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="@dimen/settings_vertical_margin"
+            android:text="@string/lbl_torque_obd_empty"
+            android:visibility="gone" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/torquePidList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:nestedScrollingEnabled="false" />
+    </LinearLayout>
+</layout>

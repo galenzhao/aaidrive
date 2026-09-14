@@ -414,8 +414,9 @@ class AmapNaviProjection(
         } catch (e: Exception) {
             Log.w(TAG, "Failed to set idle show mode", e)
         }
-        try {
-            naviView.setRouteMarkerVisible(false, false, false)
+		try {
+            // 5-arg API replaces deprecated 3-arg setRouteMarkerVisible
+            naviView.setRouteMarkerVisible(false, false, false, false, false)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to hide route markers", e)
         }

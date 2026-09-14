@@ -10,7 +10,7 @@ import io.bimmergestalt.idriveconnectkit.rhmi.RHMIEvent
 import io.bimmergestalt.idriveconnectkit.rhmi.RHMIModel
 import io.bimmergestalt.idriveconnectkit.rhmi.RHMIModelLive
 import kotlinx.coroutines.*
-import kotlinx.coroutines.test.runBlockingTest
+import kotlinx.coroutines.test.runTest
 import me.hufman.androidautoidrive.carapp.RHMIApplicationEtchBackground
 import org.apache.etch.bindings.java.msg.Message
 import org.apache.etch.bindings.java.support.Mailbox
@@ -21,7 +21,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.powermock.reflect.Whitebox
 
-@ExperimentalCoroutinesApi
+@OptIn(ExperimentalCoroutinesApi::class)
 class RHMIApplicationEtchBackgroundTest {
 	val pendingSetData = ArrayList<Mailbox>()
 	val pendingTriggerEvent = ArrayList<Mailbox>()
@@ -90,7 +90,7 @@ class RHMIApplicationEtchBackgroundTest {
 	}
 
 	@Test
-	fun testRegularModel() = runBlockingTest {
+	fun testRegularModel() = runTest {
 		// should use async and return right away
 		subject.setModel(35, "Name")
 		verify(asyncConnection)._begin_rhmi_setData(1, 35, "Name")

@@ -1,6 +1,6 @@
 package me.hufman.androidautoidrive.phoneui.controllers
 
-import androidx.viewpager.widget.ViewPager
+import androidx.viewpager2.widget.ViewPager2
 import me.hufman.androidautoidrive.music.MusicController
 import me.hufman.androidautoidrive.music.MusicMetadata
 import me.hufman.androidautoidrive.phoneui.MusicPlayerPagerAdapter
@@ -9,7 +9,7 @@ import me.hufman.androidautoidrive.phoneui.fragments.MusicBrowsePageFragment
 import me.hufman.androidautoidrive.phoneui.viewmodels.MusicPlayerItem
 import me.hufman.androidautoidrive.phoneui.viewmodels.MusicPlayerQueueItem
 
-class MusicPlayerController(var viewPager: ViewPager?, val musicController: MusicController) {
+class MusicPlayerController(var viewPager: ViewPager2?, val musicController: MusicController) {
 
 	fun showNowPlaying() {
 		viewPager?.currentItem = 0
@@ -21,7 +21,7 @@ class MusicPlayerController(var viewPager: ViewPager?, val musicController: Musi
 
 	fun pushBrowse(directory: MusicMetadata?) {
 		val adapter = viewPager?.adapter as? MusicPlayerPagerAdapter ?: return
-		val container = adapter.getItem(1) as MusicBrowseFragment
+		val container = adapter.getFragment(1) as? MusicBrowseFragment ?: return
 		container.replaceFragment(MusicBrowsePageFragment.newInstance(directory), true)
 	}
 

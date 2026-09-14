@@ -13,7 +13,6 @@ import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.core.content.PermissionChecker
 import com.bmwgroup.connected.car.app.BrandType
 import io.bimmergestalt.idriveconnectkit.CDS
 import io.bimmergestalt.idriveconnectkit.android.CarAPIAppInfo
@@ -293,11 +292,10 @@ class MainService: Service() {
 
 	fun startForegroundService(id: Int, notification: Notification) {
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-			val bluetoothFlag = if (PermissionChecker.checkSelfPermission(this, android.Manifest.permission.BLUETOOTH_CONNECT) == PermissionChecker.PERMISSION_GRANTED) {
-				ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE } else { 0 }
-			val flags = bluetoothFlag + ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+			// Long-lived car link must use connectedDevice. dataSync has a 6h/24h budget on
+			// targetSdk 35+ and will crash with ForegroundServiceDidNotStopInTimeException.
 			try {
-				super.startForeground(id, notification, flags)
+				super.startForeground(id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
 			} catch (e: Exception) {
 				Log.e(TAG, "Failed to startForeground", e)
 				stopSelf()      // not allowed at this time, for some reason
@@ -305,6 +303,16 @@ class MainService: Service() {
 		} else {
 			super.startForeground(id, notification)
 		}
+	}
+
+	override fun onTimeout(startId: Int) {
+		Log.w(TAG, "Foreground service timed out (startId=$startId), stopping")
+		stopSelf()
+	}
+
+	override fun onTimeout(startId: Int, fgsType: Int) {
+		Log.w(TAG, "Foreground service timed out (startId=$startId type=$fgsType), stopping")
+		stopSelf()
 	}
 
 	fun combinedCallback() {

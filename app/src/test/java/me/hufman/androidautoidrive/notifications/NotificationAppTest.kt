@@ -9,6 +9,7 @@ import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Parcelable
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.view.ViewGroup
@@ -106,6 +107,7 @@ class NotificationAppTest {
 
 	@Before
 	fun setUp() {
+		setFinalStatic(Build.VERSION::class.java.getField("SDK_INT"), 33)
 		NotificationsState.notifications.clear()
 		NotificationsState.serviceConnected = true
 		UnicodeCleaner._addPlaceholderEmoji("\u00A9", listOf("copyright"), "copyright")
@@ -118,7 +120,7 @@ class NotificationAppTest {
 
 	@After
 	fun tearDown() {
-		setFinalStatic(Build.VERSION::class.java.getField("SDK_INT"), 0)
+		setFinalStatic(Build.VERSION::class.java.getField("SDK_INT"), 33)
 	}
 
 	@Test
@@ -255,22 +257,19 @@ class NotificationAppTest {
 		verify(readoutCommands, never()).cancel("NotificationReadout")
 	}
 
-	@Suppress("DEPRECATION")
 	fun createNotification(tickerText:String, title:String?, text: String?, summary:String, clearable: Boolean=false, packageName: String="me.hufman.androidautoidrive"): StatusBarNotification {
 		val smallIconMock = mock<Icon>()
 		val largeIconMock = mock<Icon>()
 		val phoneNotification = mock<Notification> {
-			on { getLargeIcon() } doReturn largeIconMock
 			on { smallIcon } doReturn smallIconMock
 		}
 		phoneNotification.tickerText = tickerText
 		phoneNotification.extras = mock<Bundle> {
-			on { get(eq(Notification.EXTRA_TITLE)) } doReturn title
 			on { getCharSequence(eq(Notification.EXTRA_TITLE)) } doReturn title
 			on { getCharSequence(eq(Notification.EXTRA_TEXT)) } doReturn text
 			on { getCharSequence(eq(Notification.EXTRA_SUMMARY_TEXT)) } doReturn summary
+			on { getParcelable(eq(NotificationCompat.EXTRA_LARGE_ICON), eq(Icon::class.java)) } doReturn largeIconMock
 		}
-		phoneNotification.sound = mock()
 		phoneNotification.actions = arrayOf(mock(), mock(), mock())
 		phoneNotification.actions[0].title = "Custom Action"
 		phoneNotification.actions[0].actionIntent = mock()
@@ -309,9 +308,9 @@ class NotificationAppTest {
 		val picture = mock<Bitmap>()
 		val largeIconDrawable = mock<Drawable>()
 		val pictureDrawable = mock<Drawable>()
-		whenever(notification.notification.extras.getParcelable<Bitmap>(eq(Notification.EXTRA_PICTURE))) doReturn picture
-		whenever(notification.notification.extras.getParcelable<Icon>(eq(NotificationCompat.EXTRA_LARGE_ICON))) doReturn largeIcon
-		whenever(notification.notification.extras.getParcelable<Icon>(eq(NotificationCompat.EXTRA_LARGE_ICON_BIG))) doReturn largeIcon
+		whenever(notification.notification.extras.getParcelable(eq(Notification.EXTRA_PICTURE), eq(Bitmap::class.java))) doReturn picture
+		whenever(notification.notification.extras.getParcelable(eq(NotificationCompat.EXTRA_LARGE_ICON), eq(Icon::class.java))) doReturn largeIcon
+		whenever(notification.notification.extras.getParcelable(eq(NotificationCompat.EXTRA_LARGE_ICON_BIG), eq(Icon::class.java))) doReturn largeIcon
 		whenever(phoneAppResources.getIconDrawable(eq(largeIcon))) doReturn largeIconDrawable
 		whenever(phoneAppResources.getBitmapDrawable(eq(picture))) doReturn pictureDrawable
 		val notificationImageObject = NotificationParser(mock(), phoneAppResources, mock()).summarizeNotification(notification)
@@ -350,16 +349,16 @@ class NotificationAppTest {
 		}
 		val message3 = mock<Bundle> {
 			on { getCharSequence(eq("sender")) } doReturn "Sender"
-			on { getParcelable<Person>(eq("sender_person")) } doReturn person
+			on { getParcelable(eq("sender_person"), eq(Person::class.java)) } doReturn person
 			on { getCharSequence(eq("text")) } doReturn "Message3"
 			on { getCharSequence(eq("type")) } doReturn "image/"
-			on { getParcelable<Uri>(eq("uri")) } doReturn mock<Uri>()
+			on { getParcelable(eq("uri"), eq(Uri::class.java)) } doReturn mock<Uri>()
 		}
 
 		val notification = createNotification("Ticker Text", "Title", "Text", "Summary", true)
 		whenever(notification.notification.extras.getString(eq(Notification.EXTRA_TEMPLATE))) doReturn "android.app.Notification\$MessagingStyle"
-		whenever(notification.notification.extras.getParcelableArray(eq(Notification.EXTRA_HISTORIC_MESSAGES))) doAnswer { null }
-		whenever(notification.notification.extras.getParcelableArray(eq(Notification.EXTRA_MESSAGES))) doReturn arrayOf(
+		whenever(notification.notification.extras.getParcelableArray(eq(Notification.EXTRA_HISTORIC_MESSAGES), eq(Parcelable::class.java))) doAnswer { null }
+		whenever(notification.notification.extras.getParcelableArray(eq(Notification.EXTRA_MESSAGES), eq(Parcelable::class.java))) doReturn arrayOf(
 				message, message2, message3
 		)
 
@@ -396,12 +395,14 @@ class NotificationAppTest {
 		assertEquals("Summary", notificationObject.text)
 	}
 
-	@Suppress("DEPRECATION")
 	@Test
 	fun testSummaryCustomView() {
 		val phoneNotification = createNotification("Ticker Text", "Title", "Text", "Summary", false)
 		val notification = phoneNotification.notification
-		notification.bigContentView = mock()
+		Notification::class.java.getDeclaredField("bigContentView").apply {
+			isAccessible = true
+			set(notification, mock<android.widget.RemoteViews>())
+		}
 
 		val label = mock<TextView> {
 			on { isClickable } doReturn true

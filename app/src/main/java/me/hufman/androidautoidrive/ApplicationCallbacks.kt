@@ -21,6 +21,9 @@ class ApplicationCallbacks: Application(), Application.ActivityLifecycleCallback
 	override fun onCreate() {
 		super.onCreate()
 
+		AppSettings.loadSettings(this)
+		me.hufman.androidautoidrive.obd.TorqueObdController.init(this)
+
 		registerActivityLifecycleCallbacks(this)
 	}
 

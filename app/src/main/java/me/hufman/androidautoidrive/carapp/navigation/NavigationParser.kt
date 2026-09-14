@@ -6,6 +6,7 @@ import android.location.Geocoder
 import android.util.Log
 import com.google.openlocationcode.OpenLocationCode
 import me.hufman.androidautoidrive.maps.LatLong
+import me.hufman.androidautoidrive.utils.GeocoderCompat
 import java.io.IOException
 import java.net.*
 import java.util.*
@@ -19,8 +20,7 @@ class AndroidGeocoderSearcher(context: Context): AddressSearcher {
 	val geocoder = Geocoder(context)
 	override fun search(query: String): Address? {
 		return try {
-			// TODO https://github.com/BimmerGestalt/AAIdrive/issues/729
-			geocoder.getFromLocationName(query, 1)?.getOrNull(0)
+			GeocoderCompat.getFromLocationName(geocoder, query, 1).getOrNull(0)
 		} catch (e: IOException) {
 			null
 		}

@@ -7,8 +7,10 @@ import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.android.asCoroutineDispatcher
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import me.hufman.androidautoidrive.music.*
 import me.hufman.androidautoidrive.utils.CachedData
@@ -19,6 +21,9 @@ import java.util.*
  * Any function may throw DeadObjectException, please catch it
  */
 class GenericMusicAppController(val context: Context, val mediaController: MediaControllerCompat, val musicBrowser: MusicBrowser?) : MusicAppController {
+	private val browserScope = musicBrowser?.let {
+		CoroutineScope(SupervisorJob() + it.handler.asCoroutineDispatcher())
+	}
 	// update cached state and forward any callbacks to the UI
 	private val controllerCallback by lazy {
 		object : MediaControllerCompat.Callback() {
@@ -228,9 +233,10 @@ class GenericMusicAppController(val context: Context, val mediaController: Media
 	 */
 	private fun triggerSpotifyWorkaround() {
 		// spotify needs a browse to update metadata, such as queue and custom actions
-		if (musicBrowser?.musicAppInfo?.packageName == "com.spotify.music" && musicBrowser.connected) {
-			GlobalScope.launch(musicBrowser.handler.asCoroutineDispatcher()) {
-				musicBrowser.browse(null, 200)
+		val browser = musicBrowser
+		if (browser?.musicAppInfo?.packageName == "com.spotify.music" && browser.connected) {
+			browserScope?.launch {
+				browser.browse(null, 200)
 			}
 		}
 	}
@@ -262,6 +268,7 @@ class GenericMusicAppController(val context: Context, val mediaController: Media
 
 	private fun disconnectController() {
 		this.connected = false
+		browserScope?.cancel()
 		try {
 			mediaController.unregisterCallback(this.controllerCallback)
 			allControllerCaches.forEach { it.enabled = false }

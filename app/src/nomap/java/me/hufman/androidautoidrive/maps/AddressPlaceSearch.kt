@@ -6,6 +6,7 @@ import android.location.Geocoder
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import me.hufman.androidautoidrive.CarInformation
+import me.hufman.androidautoidrive.utils.GeocoderCompat
 import java.io.IOException
 
 fun Address.addressLines(): List<String> {
@@ -26,7 +27,7 @@ class AddressPlaceSearch(val geocoder: Geocoder, private val locationProvider: C
 			val currentLocation = locationProvider.currentLocation?.let {
 				LatLong(it.latitude, it.longitude)
 			}
-			val searchResults = geocoder.getFromLocationName(query, 5) ?: emptyList()
+			val searchResults = GeocoderCompat.getFromLocationName(geocoder, query, 5)
 			results.complete(searchResults.map {
 				val name = if (!it.getAddressLine(0).startsWith(it.featureName)) { it.featureName } else { "" }
 				val placeLocation = LatLong(it.latitude, it.longitude)

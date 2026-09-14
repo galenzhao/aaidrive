@@ -200,7 +200,7 @@ class BrowseView(val states: List<RHMIState>, val musicController: MusicControll
 		stack.subList(index, stack.size).clear()
 
 		// remember the song as the last selected item
-		stack.last.pageModel?.previouslySelected = song
+		stack.last().pageModel?.previouslySelected = song
 		stack.add(BrowseState(song, mutableListOf(song)))
 
 		// now actually play

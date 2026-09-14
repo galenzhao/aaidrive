@@ -16,7 +16,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.mockito.ArgumentMatchers.anyInt
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ConnectionStatusModelTest {
 	@Rule
 	@JvmField
@@ -26,11 +28,9 @@ class ConnectionStatusModelTest {
 	@JvmField
 	val testCoroutineRule = TestCoroutineRule()
 
-	@Suppress("DEPRECATION")
 	val resources: Resources = mock {
-		on {getColor(any())} doAnswer {context.getColor(it.arguments[0] as Int)}
 		on {getColor(any(), any())} doAnswer {context.getColor(it.arguments[0] as Int)}
-		on {getDrawable(any())} doAnswer{context.getDrawable(it.arguments[0] as Int)}
+		on {getDrawable(any(), any())} doAnswer{context.getDrawable(it.arguments[0] as Int)}
 		on {getValue(anyInt(), any(), any())} doAnswer { (it.arguments[1] as TypedValue).resourceId = it.arguments[0] as Int }
 	}
 	val context: Context = mock {

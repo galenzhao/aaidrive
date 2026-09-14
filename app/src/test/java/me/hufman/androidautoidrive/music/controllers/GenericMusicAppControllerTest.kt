@@ -94,9 +94,7 @@ class GenericMusicAppControllerTest {
 		// parsing an official custom action
 		// prepare the context to return info from the app
 		val actionIcon = mock<Drawable>()
-		@Suppress("DEPRECATION")
 		val resources = mock<Resources> {
-			on { getDrawable(any()) } doReturn actionIcon       // unit tests run under old SDK codepath in ResourcesCompat
 			on { getDrawable(any(), anyOrNull()) } doReturn actionIcon
 		}
 		val packageManager = mock<PackageManager> {
@@ -230,7 +228,7 @@ class GenericMusicAppControllerTest {
 		}
 		whenever(mediaController.metadata) doAnswer {
 			mock {
-				on { getBitmap(any()) } doAnswer { mockMetadata.getParcelable(it.getArgument(0)) }
+				on { getBitmap(any()) } doAnswer { mockMetadata.getParcelable(it.getArgument(0), Bitmap::class.java) }
 				on { getLong(any()) } doAnswer { mockMetadata.getLong(it.getArgument(0)) }
 				on { getString(any()) } doAnswer { mockMetadata.getString(it.getArgument(0)) }
 				on { bundle } doReturn mockMetadata
@@ -283,7 +281,7 @@ class GenericMusicAppControllerTest {
 		for (key in listOf("ART", "ALBUM_ART", "DISPLAY_ICON")) {
 			reset(mockMetadata)
 			val coverArt = mock<Bitmap>()
-			whenever(mockMetadata.getParcelable<Bitmap>("android.media.metadata.$key")) doReturn coverArt
+			whenever(mockMetadata.getParcelable("android.media.metadata.$key", Bitmap::class.java)) doReturn coverArt
 			val metadata = controller.getMetadata()
 			assertEquals(coverArt, metadata?.coverArt)
 		}

@@ -1,26 +1,22 @@
 package me.hufman.androidautoidrive
 
 import android.content.Context
-import androidx.test.runner.screenshot.BasicScreenCaptureProcessor
-import androidx.test.runner.screenshot.ScreenCapture
+import android.graphics.Bitmap
 import java.io.File
-import java.util.*
 
-class PrivateScreenshotProcessor(context: Context): BasicScreenCaptureProcessor() {
-	init {
-		this.mDefaultScreenshotPath = File(
-			context.getExternalFilesDir(null)!!.absolutePath,
-			"screenshots"
-		)
-	}
+/** Saves instrumentation screenshots under the app's external files dir. */
+class PrivateScreenshotProcessor(context: Context) {
+	private val imageFolder = File(
+		context.getExternalFilesDir(null)!!.absolutePath,
+		"screenshots"
+	)
 
-	override fun getFilename(prefix: String): String = prefix
-	override fun process(capture: ScreenCapture?): String {
-		val imageFolder = mDefaultScreenshotPath
-		val filename = if (capture!!.name == null) defaultFilename else getFilename(capture.name)
-		val suffix = "." + capture.format.toString().lowercase(Locale.getDefault())
-		val imageFile = File(imageFolder, filename + suffix)
+	fun save(name: String, bitmap: Bitmap) {
+		imageFolder.mkdirs()
+		val imageFile = File(imageFolder, "$name.png")
 		println("Saving to $imageFile")
-		return super.process(capture)
+		imageFile.outputStream().use { out ->
+			bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+		}
 	}
 }

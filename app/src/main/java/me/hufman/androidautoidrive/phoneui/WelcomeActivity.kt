@@ -1,17 +1,17 @@
 package me.hufman.androidautoidrive.phoneui
 
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.widget.Button
 import androidx.activity.addCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentManager
-import androidx.fragment.app.FragmentStatePagerAdapter
-import androidx.viewpager.widget.ViewPager
-import com.google.android.material.tabs.TabLayout
+import androidx.fragment.app.FragmentActivity
+import androidx.viewpager2.adapter.FragmentStateAdapter
+import androidx.viewpager2.widget.ViewPager2
+import com.google.android.material.tabs.TabLayoutMediator
 import me.hufman.androidautoidrive.AppSettings
 import me.hufman.androidautoidrive.R
 import me.hufman.androidautoidrive.phoneui.fragments.welcome.*
@@ -27,17 +27,17 @@ class WelcomeActivity: AppCompatActivity() {
 		setSupportActionBar(navToolbar)
 		val origPaddingTop = navToolbar.paddingTop
 		navToolbar.setOnApplyWindowInsetsListener { v, insets ->
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-				v.updatePadding(top = origPaddingTop + insets.systemWindowInsets.top)
-			}
+			val compat = WindowInsetsCompat.toWindowInsetsCompat(insets, v)
+			val top = compat.getInsets(WindowInsetsCompat.Type.systemBars()).top
+			v.updatePadding(top = origPaddingTop + top)
 			insets
 		}
 
-		val pgrWelcomeTabs = findViewById<ViewPager>(R.id.pgrWelcomeTabs)
-		val adapter = FirstStartPagerAdapter(supportFragmentManager)
+		val pgrWelcomeTabs = findViewById<ViewPager2>(R.id.pgrWelcomeTabs)
+		val adapter = FirstStartPagerAdapter(this)
 		pgrWelcomeTabs.adapter = adapter
 
-		findViewById<TabLayout>(R.id.tabWelcomeTabs).setupWithViewPager(pgrWelcomeTabs)
+		TabLayoutMediator(findViewById(R.id.tabWelcomeTabs), pgrWelcomeTabs) { _, _ -> }.attach()
 
 		onBackPressedDispatcher.addCallback {
 			if (pgrWelcomeTabs.currentItem == 0) {
@@ -54,8 +54,8 @@ class WelcomeActivity: AppCompatActivity() {
 		super.onResume()
 
 		findViewById<Button>(R.id.btnNext).setOnClickListener {
-			val pgrWelcomeTabs = findViewById<ViewPager>(R.id.pgrWelcomeTabs)
-			if (pgrWelcomeTabs.currentItem != (pgrWelcomeTabs.adapter?.count ?: 0) - 1) {
+			val pgrWelcomeTabs = findViewById<ViewPager2>(R.id.pgrWelcomeTabs)
+			if (pgrWelcomeTabs.currentItem != (pgrWelcomeTabs.adapter?.itemCount ?: 0) - 1) {
 				pgrWelcomeTabs.currentItem = pgrWelcomeTabs.currentItem + 1
 			} else {
 				AppSettings.saveSetting(this, AppSettings.KEYS.FIRST_START_DONE, "true")
@@ -68,26 +68,26 @@ class WelcomeActivity: AppCompatActivity() {
 	}
 }
 
-class FirstStartPagerAdapter(fm: FragmentManager): FragmentStatePagerAdapter(fm, BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT) {
-	val tabs = arrayOf(
-		WelcomeFragment(),
-		WelcomeDependenciesFragment(),
-		WelcomeNotificationFragment(),
-		WelcomeMusicFragment(),
-		if (WelcomeAnalyticsFragment.isSupported()) WelcomeAnalyticsFragment() else null,
-		WelcomeCompleteFragment()
-	).filterNotNull()
+class FirstStartPagerAdapter(fragmentActivity: FragmentActivity): FragmentStateAdapter(fragmentActivity) {
+	private val includeAnalytics = WelcomeAnalyticsFragment.isSupported()
 
-	override fun getCount(): Int {
-		return tabs.size
-	}
+	override fun getItemCount(): Int = if (includeAnalytics) 6 else 5
 
-	override fun getPageTitle(position: Int): CharSequence {
-		// only show dots, not titles
-		return ""
-	}
-
-	override fun getItem(index: Int): Fragment {
-		return tabs.elementAt(index)
+	override fun createFragment(position: Int): Fragment {
+		var index = position
+		if (index == 0) return WelcomeFragment()
+		index--
+		if (index == 0) return WelcomeDependenciesFragment()
+		index--
+		if (index == 0) return WelcomeNotificationFragment()
+		index--
+		if (index == 0) return WelcomeMusicFragment()
+		index--
+		if (includeAnalytics) {
+			if (index == 0) return WelcomeAnalyticsFragment()
+			index--
+		}
+		if (index == 0) return WelcomeCompleteFragment()
+		throw IllegalArgumentException("Unknown welcome page $position")
 	}
 }

@@ -276,6 +276,23 @@
     <string name="lbl_analytics_description">Besides crash reports, turning on analytics will also upload the list of installed music apps and some anonymous car information to help prioritize feature development.</string>
     <string name="lbl_analytics_enabled">Enable analytics and crash reporting</string>
 
+    <string name="lbl_torque_obd_title">Torque OBD</string>
+    <string name="lbl_torque_obd_description">Show selected Torque Pro sensors on the car Detailed Vehicle Info screens (OBD pages). Install Torque Pro, connect the adapter, add sensors to the Torque dashboard, then refresh and select them here.</string>
+    <string name="lbl_torque_obd_enabled">Enable Torque OBD in car</string>
+    <string name="lbl_torque_obd_refresh">Refresh PID list from Torque</string>
+    <string name="lbl_torque_obd_mode_active">Active PIDs</string>
+    <string name="lbl_torque_obd_mode_ecu">ECU supported</string>
+    <string name="lbl_torque_obd_mode_all">All PIDs</string>
+    <string name="lbl_torque_obd_status_disabled">Disabled</string>
+    <string name="lbl_torque_obd_status_missing">Torque app not installed</string>
+    <string name="lbl_torque_obd_status_disconnected">Not connected to Torque</string>
+    <string name="lbl_torque_obd_status_binding">Connecting to Torque…</string>
+    <string name="lbl_torque_obd_status_bound">Torque connected (waiting for ECU)</string>
+    <string name="lbl_torque_obd_status_ecu">Torque connected to ECU</string>
+    <string name="lbl_torque_obd_status_error">Torque error</string>
+    <string name="lbl_torque_obd_empty">No PIDs yet. Connect Torque to the car, then tap Refresh.</string>
+    <string name="lbl_torque_obd_selected_count">%1$d selected</string>
+
     <string name="lbl_donations_volunteer">AAIdrive is a volunteer project</string>
     <string name="lbl_donations_request">If you like this project and find it useful, consider showing your support by donating:</string>
     <string name="btn_donations">Donate</string>
@@ -507,6 +524,7 @@
     <string name="CARINFO_TITLE_AC">Air Condition Info</string>
     <string name="CARINFO_TITLE_WINDOWS">Windows Info</string>
     <string name="CARINFO_TITLE_TRAVEL">Travel Info</string>
+    <string name="CARINFO_TITLE_OBD">OBD</string>
     <string name="CARINFO_ENGINE">Engine</string>
     <string name="CARINFO_OIL">Oil</string>
     <string name="CARINFO_BATTERY">Battery</string>

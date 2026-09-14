@@ -1,5 +1,7 @@
 package me.hufman.androidautoidrive
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.*
 import androidx.test.espresso.assertion.ViewAssertions.matches
@@ -12,7 +14,6 @@ import androidx.test.espresso.matcher.ViewMatchers.isDisplayingAtLeast
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.ext.junit.rules.activityScenarioRule
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.runner.screenshot.Screenshot
 import androidx.viewpager2.widget.ViewPager2
 import org.mockito.kotlin.*
 import org.awaitility.Awaitility.await
@@ -63,11 +64,11 @@ class MainScreenshotTest {
 
 	val processor = PrivateScreenshotProcessor(context)
 	fun screenshot(name: String) {
-		activityScenario.scenario.onActivity {
-			Screenshot.capture(it).apply {
-				this.name = name
-				process(setOf(processor))
-			}
+		activityScenario.scenario.onActivity { activity ->
+			val view = activity.window.decorView.rootView
+			val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+			view.draw(Canvas(bitmap))
+			processor.save(name, bitmap)
 		}
 	}
 

@@ -36,7 +36,6 @@ class DimensionsSettingsModel(appContext: Context, val carCapabilities: LiveData
 	val paddingLeft = StringLiveSetting(appContext, AppSettings.KEYS.DIMENSIONS_PADDING_LEFT)
 	val paddingTop = StringLiveSetting(appContext, AppSettings.KEYS.DIMENSIONS_PADDING_TOP)
 	val btfetchUuidsWithSdp = StringLiveSetting(appContext, AppSettings.KEYS.BTFETCHUUIDSWITHSDP)
-	val ITorqueService = StringLiveSetting(appContext, AppSettings.KEYS.ITorqueService)
 	val minFrameTime = StringLiveSetting(appContext, AppSettings.KEYS.MINFRAMETIME)
 	val compressQuality = StringLiveSetting(appContext, AppSettings.KEYS.compressQuality)
 	val wgs84ToGcj02 = StringLiveSetting(appContext, AppSettings.KEYS.wgs84ToGcj02)

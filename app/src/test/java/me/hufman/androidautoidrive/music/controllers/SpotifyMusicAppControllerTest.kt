@@ -10,10 +10,9 @@ import com.spotify.android.appremote.api.*
 import com.spotify.protocol.client.CallResult
 import com.spotify.protocol.client.Subscription
 import com.spotify.protocol.types.*
-import junit.framework.Assert.assertEquals
 import kotlinx.coroutines.*
-import kotlinx.coroutines.test.TestCoroutineDispatcher
-import kotlinx.coroutines.test.runBlockingTest
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
 import me.hufman.androidautoidrive.AppSettings
 import me.hufman.androidautoidrive.carapp.L
 import me.hufman.androidautoidrive.MockAppSettings
@@ -23,11 +22,11 @@ import me.hufman.androidautoidrive.music.spotify.TemporaryPlaylistState
 import me.hufman.androidautoidrive.music.spotify.SpotifyMusicMetadata
 import me.hufman.androidautoidrive.music.spotify.SpotifyWebApi
 import me.hufman.androidautoidrive.utils.Utils
-import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class SpotifyMusicAppControllerTest {
 	val contentCallback = argumentCaptor<CallResult.ResultCallback<ListItems>>()
 	val imagesCallback = argumentCaptor<CallResult.ResultCallback<Bitmap>>()
@@ -93,7 +92,7 @@ class SpotifyMusicAppControllerTest {
 
 	lateinit var controller: SpotifyAppController
 	lateinit var appSettings: MutableAppSettings
-	private val testDispatcher = TestCoroutineDispatcher()
+	private val testDispatcher = UnconfinedTestDispatcher()
 	private val gson: Gson = Gson()
 
 	@Before
@@ -101,11 +100,6 @@ class SpotifyMusicAppControllerTest {
 		appSettings = MockAppSettings()
 		controller = SpotifyAppController(mock(), remote, webApi, appSettings, false)
 		controller.defaultDispatcher = testDispatcher
-	}
-
-	@After
-	fun tearDown() {
-		testDispatcher.cleanupTestCoroutines()
 	}
 
 	@Test
@@ -635,7 +629,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testQueue_Playlist_WebAPILoaded() = runBlockingTest {
+	fun testQueue_Playlist_WebAPILoaded() = runTest {
 		val playerContext = PlayerContext("playlistUri", "title", "subtitle", "playlist")
 		val queueImageUri = ImageUri("imageUri")
 		val queueCoverArtBitmap: Bitmap = mock()
@@ -678,7 +672,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testQueue_Playlist_WebAPINotLoaded() = runBlockingTest {
+	fun testQueue_Playlist_WebAPINotLoaded() = runTest {
 		val playerContext = PlayerContext("playlistUri", "title", "subtitle", "playlist")
 		val queueImageUri = ImageUri("imageUri")
 		val queueCoverArtBitmap: Bitmap = mock()
@@ -721,7 +715,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testQueue_LikedSongsPlaylist_WebAPILoaded_NoCachedContent_NoExistingPlaylist() = runBlockingTest {
+	fun testQueue_LikedSongsPlaylist_WebAPILoaded_NoCachedContent_NoExistingPlaylist() = runTest {
 		val playerContext = PlayerContext("uri", "Liked Songs", null, "your_library_tracks")
 		val queueImageUriStr = "imageUri"
 		val queueImageUri = ImageUri(queueImageUriStr)
@@ -784,7 +778,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testQueue_LikedSongsPlaylist_WebAPILoaded_NoCachedContent_ExistingPlaylist() = runBlockingTest {
+	fun testQueue_LikedSongsPlaylist_WebAPILoaded_NoCachedContent_ExistingPlaylist() = runTest {
 		val playerContext = PlayerContext("uri", "Liked Songs", null, "your_library_tracks")
 		val queueImageUriStr = "imageUri"
 		val queueImageUri = ImageUri(queueImageUriStr)
@@ -846,7 +840,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testQueue_LikedSongsPlaylist_WebAPILoaded_NoCachedContent_PlaylistCreationFailure() = runBlockingTest {
+	fun testQueue_LikedSongsPlaylist_WebAPILoaded_NoCachedContent_PlaylistCreationFailure() = runTest {
 		val playerContext = PlayerContext("playlistUri", "Liked Songs", null, "your_library_tracks")
 		val queueImageUri = ImageUri("imageUri")
 		val queueCoverArtBitmap: Bitmap = mock()
@@ -894,7 +888,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testQueue_LikedSongsPlaylist_WebAPILoaded_CachedContent_PlaylistDataInvalid() = runBlockingTest {
+	fun testQueue_LikedSongsPlaylist_WebAPILoaded_CachedContent_PlaylistDataInvalid() = runTest {
 		val playerContext = PlayerContext("playlistUri", "Liked Songs", null, "your_library_tracks")
 		val queueImageUriStr = "imageUri"
 		val queueImageUri = ImageUri(queueImageUriStr)
@@ -952,7 +946,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testQueue_LikedSongsPlaylist_WebAPINotLoaded() = runBlockingTest {
+	fun testQueue_LikedSongsPlaylist_WebAPINotLoaded() = runTest {
 		val playerContext = PlayerContext("playlistUri", "Liked Songs", null, "your_library_tracks")
 		val queueImageUri = ImageUri("imageUri")
 		val queueCoverArtBitmap: Bitmap = mock()
@@ -994,7 +988,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testQueue_ArtistPlaylist_WebAPILoaded_NoCachedContent_NoExistingPlaylist() = runBlockingTest {
+	fun testQueue_ArtistPlaylist_WebAPILoaded_NoCachedContent_NoExistingPlaylist() = runTest {
 		val playerContext = PlayerContext("artistUri", "Artist", null, "artist")
 		val queueImageUriStr = "imageUri"
 		val queueImageUri = ImageUri(queueImageUriStr)
@@ -1056,7 +1050,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testQueue_ArtistPlaylist_WebAPILoaded_ArtistTitleBlank_NoCachedContent_NoExistingPlaylist() = runBlockingTest {
+	fun testQueue_ArtistPlaylist_WebAPILoaded_ArtistTitleBlank_NoCachedContent_NoExistingPlaylist() = runTest {
 		val artistTitle = "Artist"
 		val playerContext = PlayerContext("artistUri", "", null, "artist")
 		val queueImageUriStr = "imageUri"
@@ -1124,7 +1118,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testQueue_ArtistPlaylist_WebAPILoaded_NoCachedContent_ExistingPlaylist() = runBlockingTest {
+	fun testQueue_ArtistPlaylist_WebAPILoaded_NoCachedContent_ExistingPlaylist() = runTest {
 		val playerContext = PlayerContext("artistUri", "Artist", null, "artist")
 		val queueImageUriStr = "imageUri"
 		val queueImageUri = ImageUri(queueImageUriStr)
@@ -1185,7 +1179,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testQueue_ArtistPlaylist_WebAPILoaded_NoCachedContent_PlaylistCreationFailure() = runBlockingTest {
+	fun testQueue_ArtistPlaylist_WebAPILoaded_NoCachedContent_PlaylistCreationFailure() = runTest {
 		val playerContext = PlayerContext("artistUri", "Artist", null, "artist")
 		val queueImageUri = ImageUri("imageUri")
 		val queueCoverArtBitmap: Bitmap = mock()
@@ -1233,7 +1227,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testQueue_ArtistPlaylist_WebAPILoaded_CachedContent_PlaylistDataInvalid() = runBlockingTest {
+	fun testQueue_ArtistPlaylist_WebAPILoaded_CachedContent_PlaylistDataInvalid() = runTest {
 		val playerContext = PlayerContext("playlistUri", "Artist", null, "artist")
 		val queueImageUriStr = "imageUri"
 		val queueImageUri = ImageUri(queueImageUriStr)
@@ -1293,7 +1287,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testQueue_ArtistPlaylist_WebAPILoaded_CachedContent_PlaylistDataInvalid_CachedPlaylistDifferentThanCurrent() = runBlockingTest {
+	fun testQueue_ArtistPlaylist_WebAPILoaded_CachedContent_PlaylistDataInvalid_CachedPlaylistDifferentThanCurrent() = runTest {
 		val playerContext = PlayerContext("playlistUri", "Artist", null, "artist")
 		val queueImageUriStr = "imageUri"
 		val queueImageUri = ImageUri(queueImageUriStr)
@@ -1357,7 +1351,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testQueue_ArtistPlaylist_WebAPILoaded_ArtistTemporaryPlaylistInContext_CachedContent() = runBlockingTest {
+	fun testQueue_ArtistPlaylist_WebAPILoaded_ArtistTemporaryPlaylistInContext_CachedContent() = runTest {
 		val playerContext = PlayerContext("playlistUri", SpotifyWebApi.ARTIST_SONGS_PLAYLIST_NAME, null, "artist")
 		val queueImageUriStr = "imageUri"
 		val queueImageUri = ImageUri(queueImageUriStr)
@@ -1412,7 +1406,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testQueue_ArtistPlaylist_WebAPINotLoaded() = runBlockingTest {
+	fun testQueue_ArtistPlaylist_WebAPINotLoaded() = runTest {
 		val playerContext = PlayerContext("playlistUri", "Artist", null, "artist")
 		val queueImageUri = ImageUri("imageUri")
 		val queueCoverArtBitmap: Bitmap = mock()
@@ -1454,7 +1448,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testQueue_PodcastPlaylist() = runBlockingTest {
+	fun testQueue_PodcastPlaylist() = runTest {
 		val playerContext = PlayerContext("playlistUri", "title", "subtitle", "show")
 		val queueImageUri = ImageUri("imageUri")
 		val queueCoverArtBitmap: Bitmap = mock()
@@ -1580,7 +1574,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testBrowse_LikedSongsTemporaryPlaylist() = runBlockingTest {
+	fun testBrowse_LikedSongsTemporaryPlaylist() = runTest {
 		val deferredResults = async {
 			controller.browse(MusicMetadata(mediaId = "library", browseable = true))
 		}
@@ -1608,7 +1602,7 @@ class SpotifyMusicAppControllerTest {
 	}
 
 	@Test
-	fun testBrowse_ArtistTemporaryPlaylist() = runBlockingTest {
+	fun testBrowse_ArtistTemporaryPlaylist() = runTest {
 		val deferredResults = async {
 			controller.browse(MusicMetadata(mediaId = "library", browseable = true))
 		}

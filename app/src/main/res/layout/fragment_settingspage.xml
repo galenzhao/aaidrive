@@ -67,6 +67,15 @@
             <androidx.fragment.app.FragmentContainerView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:id="@+id/paneTorqueSettings"
+                android:name="me.hufman.androidautoidrive.phoneui.fragments.TorqueSettingsFragment"/>
+
+            <View style="@style/Divider"
+                android:layout_marginBottom="@dimen/pane_vertical_margin"/>
+
+            <androidx.fragment.app.FragmentContainerView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:id="@+id/paneDimensionsSettings"
                 android:name="me.hufman.androidautoidrive.phoneui.fragments.DimensionsSettingsFragment"/>
         </LinearLayout>

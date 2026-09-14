@@ -15,9 +15,9 @@ fun getModifiersField(): Field? {
 				Boolean::class.javaPrimitiveType
 			)
 			getDeclaredFields0.isAccessible = true
-			val fields = getDeclaredFields0.invoke(Field::class.java, false) as Array<Field>
+			val fields = getDeclaredFields0.invoke(Field::class.java, false) as? Array<*> ?: return null
 			for (field in fields) {
-				if ("modifiers" == field.name) {
+				if (field is Field && "modifiers" == field.name) {
 					return field
 				}
 			}

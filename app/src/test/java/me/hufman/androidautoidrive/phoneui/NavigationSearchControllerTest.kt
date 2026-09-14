@@ -7,7 +7,7 @@ import androidx.lifecycle.MutableLiveData
 import com.google.gson.JsonObject
 import org.mockito.kotlin.*
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.runBlockingTest
+import kotlinx.coroutines.test.runTest
 import me.hufman.androidautoidrive.CarInformation
 import me.hufman.androidautoidrive.CoroutineTestRule
 import me.hufman.androidautoidrive.R
@@ -23,7 +23,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
-@ExperimentalCoroutinesApi
+@OptIn(ExperimentalCoroutinesApi::class)
 class NavigationSearchControllerTest {
 	@Rule
 	@JvmField
@@ -51,7 +51,7 @@ class NavigationSearchControllerTest {
 	}
 
 	@Test
-	fun testBadSearch() = coroutineTestRule.testDispatcher.runBlockingTest {
+	fun testBadSearch() = coroutineTestRule.runTest {
 		val model = NavigationStatusModel(carInformation, MutableLiveData(false), MutableLiveData(false), MutableLiveData(null))
 		val controller = NavigationSearchController(this, parser, searcher, navigationTrigger, model, coroutineTestRule.testDispatcherProvider)
 		whenever(parser.parseUrl(any())) doAnswer {
@@ -82,7 +82,7 @@ class NavigationSearchControllerTest {
 	}
 
 	@Test
-	fun testRetries() = coroutineTestRule.testDispatcher.runBlockingTest {
+	fun testRetries() = coroutineTestRule.runTest {
 		val model = NavigationStatusModel(carInformation, MutableLiveData(false), MutableLiveData(false), MutableLiveData(null))
 		val controller = NavigationSearchController(this, parser, searcher, navigationTrigger, model, coroutineTestRule.testDispatcherProvider)
 
@@ -124,7 +124,7 @@ class NavigationSearchControllerTest {
 	}
 
 	@Test
-	fun testUnsuccess() = coroutineTestRule.testDispatcher.runBlockingTest {
+	fun testUnsuccess() = coroutineTestRule.runTest {
 		val model = NavigationStatusModel(carInformation, MutableLiveData(false), MutableLiveData(false), MutableLiveData(null))
 		val controller = NavigationSearchController(this, parser, searcher, navigationTrigger, model, coroutineTestRule.testDispatcherProvider)
 
