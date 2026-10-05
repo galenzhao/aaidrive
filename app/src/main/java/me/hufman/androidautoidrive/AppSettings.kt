@@ -117,6 +117,8 @@ interface AppSettings {
 		AMAP_AUTO_ZOOM_MAX("Amap_Auto_Zoom_Max", "", "AMap auto-zoom max level"),
 		/** false: setExtraGPSData type=1 WGS-84. true: convert to GCJ-02 and pass type=2 */
 		AMAP_EXTRA_GPS_GCJ02("Amap_Extra_Gps_Gcj02", "false", "Feed AMap extra GPS as GCJ-02 instead of WGS-84"),
+		/** Reject CDS fixes outside a generous China bbox (Amap-only UI; safe default on) */
+		AMAP_GPS_CHINA_BOUNDS("Amap_Gps_China_Bounds", "true", "Only accept CDS GPS inside China region for Amap"),
 		MAP_FPS("Map_Fps", "1", "Map virtual display and car capture frames per second"),
 		AUDIO_SUPPORTS_USB("Audio_Supports_USB", (Build.VERSION.SDK_INT < Build.VERSION_CODES.O).toString(), "The phone is old enough to support USB accessory audio"),
 		AUDIO_FORCE_CONTEXT("Audio_Force_Context", "false", "Force audio context"),

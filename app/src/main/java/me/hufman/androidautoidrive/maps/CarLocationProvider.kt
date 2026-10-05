@@ -11,6 +11,7 @@ import me.hufman.androidautoidrive.cds.CDSData
 import me.hufman.androidautoidrive.cds.CDSEventHandler
 import me.hufman.androidautoidrive.cds.subscriptions
 import me.hufman.androidautoidrive.utils.GsonNullable.tryAsDouble
+import me.hufman.androidautoidrive.utils.GsonNullable.tryAsInt
 import me.hufman.androidautoidrive.utils.GsonNullable.tryAsJsonObject
 import me.hufman.androidautoidrive.utils.GsonNullable.tryAsJsonPrimitive
 import java.io.Serializable
@@ -108,11 +109,20 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 		private const val CDS_GPS_SPEED_MAX_RAW = -24434.0 // ~300 km/h after decode
 		private const val CDS_GPS_SPEED_SCALE = 0.036 // (raw + 32768) * scale → km/h
 		private const val MAX_SPEED_MS = 84f // ~300 km/h; matches CDSMetrics GPS speed ceiling
-		/** Reject null-island / unset GPS that would teleport Extra GPS across the planet */
-		private const val NULL_ISLAND_EPS = 0.01
+		/**
+		 * CDS uses lat=0,lng=0 as "unset" (same pattern as empty nextDestination).
+		 * Only reject when *both* axes are unset — latitude 0 alone is the equator,
+		 * longitude 0 alone is the prime meridian.
+		 */
+		private const val UNSET_COORD_EPS = 1e-6
+		/** CDSMetrics: altitude >= 32767 is an invalid / no-fix sentinel (e.g. 65530) */
+		private const val CDS_ALTITUDE_INVALID_MIN = 32767
 		/** Ignore single-sample teleports (CDS glitches / 0,0 flashes) */
 		private const val MAX_JUMP_KM = 1.5
 		private const val MAX_JUMP_WINDOW_MS = 3000L
+		/** Far samples that agree with each other this many times replace a bad lock */
+		private const val PENDING_JUMP_ACCEPT_COUNT = 3
+		private const val PENDING_JUMP_CLUSTER_KM = 0.3
 
 		fun parseCdsIsGcj02(raw: String?): Boolean {
 			val v = raw?.trim().orEmpty()
@@ -140,8 +150,35 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 			return ms.coerceAtMost(MAX_SPEED_MS)
 		}
 
+		/** True when CDS reports the unset / null-island sentinel on both axes. */
 		fun isNullIsland(latitude: Double, longitude: Double): Boolean {
-			return latitude.absoluteValue < NULL_ISLAND_EPS && longitude.absoluteValue < NULL_ISLAND_EPS
+			return latitude.absoluteValue < UNSET_COORD_EPS && longitude.absoluteValue < UNSET_COORD_EPS
+		}
+
+		fun isPlausibleWgs84(latitude: Double, longitude: Double): Boolean {
+			return !latitude.isNanOrInfinite() && !longitude.isNanOrInfinite() &&
+					latitude > -90.0 && latitude < 90.0 &&
+					longitude > -180.0 && longitude < 180.0 &&
+					!isNullIsland(latitude, longitude)
+		}
+
+		/**
+		 * Generous WGS-84 bbox covering mainland China, Hainan, Taiwan, and near-coast waters.
+		 * Used by Amap when [AppSettings.KEYS.AMAP_GPS_CHINA_BOUNDS] is enabled — not a legal border.
+		 */
+		fun isInChinaServiceRegion(latitude: Double, longitude: Double): Boolean {
+			return latitude in CHINA_LAT_MIN..CHINA_LAT_MAX &&
+					longitude in CHINA_LNG_MIN..CHINA_LNG_MAX
+		}
+
+		private const val CHINA_LAT_MIN = 15.0
+		private const val CHINA_LAT_MAX = 55.0
+		private const val CHINA_LNG_MIN = 70.0
+		private const val CHINA_LNG_MAX = 140.0
+
+		/** CDS GPSExtendedInfo.altitude sentinel meaning no usable fix (see CDSMetrics.gpsAltitude). */
+		fun isCdsAltitudeInvalid(altitude: Int?): Boolean {
+			return altitude == null || altitude >= CDS_ALTITUDE_INVALID_MIN
 		}
 	}
 
@@ -151,6 +188,12 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 	var currentHeading: CarHeading? = null
 	private var hasCdsPosition = false
 	private var lastAcceptedTimeMs = 0L
+	private var pendingJump: LatLong? = null
+	private var pendingJumpCount = 0
+	private var lastAltitude: Int? = null
+	private var hasSeenExtendedInfo = false
+
+	private var chinaBoundsOnly = false
 
 	init {
 		refreshCoordinateMode()
@@ -186,6 +229,7 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 
 	private fun refreshCoordinateMode() {
 		wgs84ToGcj02 = parseCdsIsGcj02(appSettings?.get(AppSettings.KEYS.wgs84ToGcj02))
+		chinaBoundsOnly = appSettings?.get(AppSettings.KEYS.AMAP_GPS_CHINA_BOUNDS)?.toBoolean() == true
 	}
 
 	private fun parseGPS() {
@@ -194,12 +238,16 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 		val position = gpsPosition.tryAsJsonObject("GPSPosition")
 		val latitude = position?.tryAsJsonPrimitive("latitude")?.tryAsDouble
 		val longitude = position?.tryAsJsonPrimitive("longitude")?.tryAsDouble
-		if (longitude == null || latitude == null || longitude.isNanOrInfinite() || latitude.isNanOrInfinite() ||
-				longitude.absoluteValue >= 180 || latitude.absoluteValue >= 90) {
+		if (longitude == null || latitude == null || !isPlausibleWgs84(latitude, longitude)) {
+			if (latitude != null && longitude != null && isNullIsland(latitude, longitude)) {
+				Log.w(TAG, "Ignoring CDS GPS unset sentinel $latitude,$longitude")
+			}
 			return
 		}
-		if (isNullIsland(latitude, longitude)) {
-			Log.w(TAG, "Ignoring CDS GPS null-island $latitude,$longitude")
+		// Before the first lock, wait out "no GPS fix" extended-info (invalid altitude).
+		// After we already have a lock, keep accepting position updates.
+		if (!hasCdsPosition && hasSeenExtendedInfo && isCdsAltitudeInvalid(lastAltitude)) {
+			Log.w(TAG, "Ignoring CDS GPS before fix (altitude sentinel=$lastAltitude) at $latitude,$longitude")
 			return
 		}
 		val next = if (CoordinateUtil.outOfChina(longitude, latitude)) {
@@ -210,15 +258,34 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 		} else {
 			LatLong(latitude, longitude)
 		}
+		if (chinaBoundsOnly && !isInChinaServiceRegion(next.latitude, next.longitude)) {
+			Log.w(TAG, "Ignoring CDS GPS outside Amap China region $next")
+			return
+		}
 		val previous = currentLatLong
 		val now = System.currentTimeMillis()
 		if (previous != null && hasCdsPosition && now - lastAcceptedTimeMs < MAX_JUMP_WINDOW_MS) {
 			val jumpKm = previous.distanceFrom(next)
 			if (jumpKm > MAX_JUMP_KM) {
-				Log.w(TAG, "Ignoring CDS GPS teleport ${"%.3f".format(jumpKm)}km to $next (was $previous)")
-				return
+				// One flash far away is ignored. Several samples that agree with each other
+				// (not with the locked fix) mean the lock was wrong — switch over.
+				val pending = pendingJump
+				if (pending != null && pending.distanceFrom(next) <= PENDING_JUMP_CLUSTER_KM) {
+					pendingJumpCount++
+				} else {
+					pendingJump = next
+					pendingJumpCount = 1
+				}
+				if (pendingJumpCount < PENDING_JUMP_ACCEPT_COUNT) {
+					Log.w(TAG, "Ignoring CDS GPS teleport ${"%.3f".format(jumpKm)}km to $next " +
+							"(was $previous, pending=$pendingJumpCount/$PENDING_JUMP_ACCEPT_COUNT)")
+					return
+				}
+				Log.i(TAG, "Accepting CDS GPS cluster after $pendingJumpCount far samples at $next (was $previous)")
 			}
 		}
+		pendingJump = null
+		pendingJumpCount = 0
 		currentLatLong = next
 		hasCdsPosition = true
 		lastAcceptedTimeMs = now
@@ -228,6 +295,8 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 	private fun parseHeading() {
 		val gpsHeading = cdsData[CDS.NAVIGATION.GPSEXTENDEDINFO] ?: return
 		val position = gpsHeading.tryAsJsonObject("GPSExtendedInfo")
+		hasSeenExtendedInfo = true
+		lastAltitude = position?.tryAsJsonPrimitive("altitude")?.tryAsInt
 		val heading = position?.tryAsJsonPrimitive("heading")?.tryAsDouble   // in degrees, needs to be negated for Location usage
 		val headingAdj = if (id4) -1.40625f else -1f
 		val rawSpeed = position?.tryAsJsonPrimitive("speed")?.tryAsDouble
@@ -239,6 +308,9 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 			currentHeading = CarHeading(bearing, speedMs)
 			if (hasCdsPosition) {
 				onLocationUpdate()
+			} else if (!isCdsAltitudeInvalid(lastAltitude)) {
+				// extended info became valid — retry GPSPosition for first lock
+				parseGPS()
 			}
 		}
 	}

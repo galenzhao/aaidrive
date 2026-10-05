@@ -94,6 +94,7 @@ class MapSettingsModel(appContext: Context, carCapabilitiesSummarized: LiveData<
 	val amapAutoZoomMax = StringLiveSetting(appContext, AppSettings.KEYS.AMAP_AUTO_ZOOM_MAX)
 	val amapWgs84ToGcj02 = BooleanLiveSetting(appContext, AppSettings.KEYS.wgs84ToGcj02)
 	val amapExtraGpsGcj02 = BooleanLiveSetting(appContext, AppSettings.KEYS.AMAP_EXTRA_GPS_GCJ02)
+	val amapGpsChinaBounds = BooleanLiveSetting(appContext, AppSettings.KEYS.AMAP_GPS_CHINA_BOUNDS)
 	val mapCompressQuality = StringLiveSetting(appContext, AppSettings.KEYS.compressQuality)
 	val amapCustomStyle = BooleanLiveSetting(appContext, AppSettings.KEYS.MAP_CUSTOM_STYLE)
 	val amapStyleUrl = StringLiveSetting(appContext, AppSettings.KEYS.AMAP_STYLE_URL)

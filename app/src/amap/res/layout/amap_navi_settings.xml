@@ -616,6 +616,14 @@
             android:text="@string/lbl_amap_extra_gps_gcj02" />
 
         <androidx.appcompat.widget.SwitchCompat
+            android:checked="@={settings.amapGpsChinaBounds}"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:paddingBottom="@dimen/settings_vertical_margin"
+            android:text="@string/lbl_amap_gps_china_bounds" />
+
+        <androidx.appcompat.widget.SwitchCompat
             android:checked="@={settings.amapTrafficStatusUpdate}"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

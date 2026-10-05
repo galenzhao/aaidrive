@@ -76,6 +76,38 @@ class CdsLocationProviderTest {
 		assertNull(provider.currentLatLong)
 		assertNull(provider.currentLocation)
 		assertTrue(CdsLocationProvider.isNullIsland(0.0, 0.0))
+		assertTrue(CdsLocationProvider.isNullIsland(1e-7, -1e-7))
+		// equator / prime meridian alone are valid
+		assertFalse(CdsLocationProvider.isNullIsland(0.0, 121.61))
+		assertFalse(CdsLocationProvider.isNullIsland(38.91, 0.0))
+		assertTrue(CdsLocationProvider.isPlausibleWgs84(38.91, 121.61))
+		assertFalse(CdsLocationProvider.isPlausibleWgs84(0.0, 0.0))
+	}
+
+	@Test
+	fun testDeferFirstLockUntilAltitudeValid() {
+		val provider = CdsLocationProvider(cdsData, false)
+		provider.start()
+		assertTrue(provider.isSimulated)
+
+		// no-fix altitude sentinel first (CDS example uses 65530)
+		cdsData.onPropertyChangedEvent(CDS.NAVIGATION.GPSEXTENDEDINFO, gpsHeading)
+		cdsData.onPropertyChangedEvent(CDS.NAVIGATION.GPSPOSITION, gpsPosition)
+		assertNull(provider.currentLatLong)
+		assertTrue(provider.isSimulated)
+
+		val fixedHeading = JsonObject().apply {
+			add("GPSExtendedInfo", JsonObject().apply {
+				addProperty("altitude", 42)
+				addProperty("heading", 144)
+				addProperty("quality", 443)
+				addProperty("speed", 32768)
+			})
+		}
+		cdsData.onPropertyChangedEvent(CDS.NAVIGATION.GPSEXTENDEDINFO, fixedHeading)
+		assertEquals(12.345678, provider.currentLatLong?.latitude)
+		assertEquals(-12.345678, provider.currentLatLong?.longitude)
+		assertFalse(provider.isSimulated)
 	}
 
 	@Test
@@ -185,6 +217,36 @@ class CdsLocationProviderTest {
 	}
 
 	@Test
+	fun testChinaBoundsFilter() {
+		assertTrue(CdsLocationProvider.isInChinaServiceRegion(38.91, 121.61)) // Dalian
+		assertTrue(CdsLocationProvider.isInChinaServiceRegion(31.23, 121.47)) // Shanghai
+		assertFalse(CdsLocationProvider.isInChinaServiceRegion(12.345678, -12.345678))
+		assertFalse(CdsLocationProvider.isInChinaServiceRegion(51.5, -0.12)) // London
+
+		val settings = object : me.hufman.androidautoidrive.AppSettings {
+			val map = mutableMapOf(
+				me.hufman.androidautoidrive.AppSettings.KEYS.AMAP_GPS_CHINA_BOUNDS to "true",
+				me.hufman.androidautoidrive.AppSettings.KEYS.wgs84ToGcj02 to "false",
+			)
+			override fun get(key: me.hufman.androidautoidrive.AppSettings.KEYS): String =
+				map[key] ?: key.default
+		}
+		cdsData.onPropertyChangedEvent(CDS.NAVIGATION.GPSPOSITION, gpsPosition) // mid-Atlantic test coords
+		val provider = CdsLocationProvider(settings, cdsData, false)
+		assertNull(provider.currentLatLong)
+
+		val dalian = JsonObject().apply {
+			add("GPSPosition", JsonObject().apply {
+				addProperty("latitude", 38.91)
+				addProperty("longitude", 121.61)
+			})
+		}
+		cdsData.onPropertyChangedEvent(CDS.NAVIGATION.GPSPOSITION, dalian)
+		assertEquals(38.91, provider.currentLatLong?.latitude)
+		assertEquals(121.61, provider.currentLatLong?.longitude)
+	}
+
+	@Test
 	fun testRejectTeleport() {
 		cdsData.onPropertyChangedEvent(CDS.NAVIGATION.GPSPOSITION, gpsPosition)
 		val provider = CdsLocationProvider(cdsData, false)
@@ -197,8 +259,30 @@ class CdsLocationProviderTest {
 			})
 		}
 		cdsData.onPropertyChangedEvent(CDS.NAVIGATION.GPSPOSITION, farAway)
-		// jump from mid-Atlantic-ish test coords to Dalian is thousands of km — keep previous
+		// single flash — keep previous
 		assertEquals(12.345678, provider.currentLatLong?.latitude)
 		assertEquals(-12.345678, provider.currentLatLong?.longitude)
+	}
+
+	@Test
+	fun testRecoverFromBadLockWithConsistentFarSamples() {
+		cdsData.onPropertyChangedEvent(CDS.NAVIGATION.GPSPOSITION, gpsPosition)
+		val provider = CdsLocationProvider(cdsData, false)
+		assertEquals(12.345678, provider.currentLatLong?.latitude)
+
+		fun far(lat: Double, lng: Double) = JsonObject().apply {
+			add("GPSPosition", JsonObject().apply {
+				addProperty("latitude", lat)
+				addProperty("longitude", lng)
+			})
+		}
+		// three consistent Dalian-area samples should replace the bad mid-ocean lock
+		cdsData.onPropertyChangedEvent(CDS.NAVIGATION.GPSPOSITION, far(38.91, 121.61))
+		assertEquals(12.345678, provider.currentLatLong?.latitude)
+		cdsData.onPropertyChangedEvent(CDS.NAVIGATION.GPSPOSITION, far(38.911, 121.612))
+		assertEquals(12.345678, provider.currentLatLong?.latitude)
+		cdsData.onPropertyChangedEvent(CDS.NAVIGATION.GPSPOSITION, far(38.912, 121.611))
+		assertEquals(38.912, provider.currentLatLong?.latitude)
+		assertEquals(121.611, provider.currentLatLong?.longitude)
 	}
 }

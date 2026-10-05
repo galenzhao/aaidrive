@@ -184,6 +184,7 @@
     <string name="lbl_amap_select_route">Choose route before starting</string>
     <string name="lbl_amap_wgs84_gcj02">Car CDS GPS is GCJ-02 (China), not WGS-84</string>
     <string name="lbl_amap_extra_gps_gcj02">Feed AMap extra GPS as GCJ-02 (default is WGS-84 / type 1)</string>
+    <string name="lbl_amap_gps_china_bounds">Only accept CDS GPS inside China region</string>
     <string name="lbl_amap_night_auto">Auto night navi UI</string>
     <string name="lbl_amap_night">Night navi UI</string>
     <string name="lbl_amap_layout">Show navi HUD</string>
