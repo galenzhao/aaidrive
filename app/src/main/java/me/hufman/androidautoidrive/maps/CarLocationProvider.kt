@@ -79,8 +79,8 @@ object SimulatedCarLocation {
 
 abstract class CarLocationProvider {
 	/**
-	 * Whether the car reports GCJ-02 coordinates (setting key kept as wgs84ToGcj02)
-	 * If so, they are converted back so that currentLocation is always WGS-84
+	 * Whether CDS GPSPosition is already GCJ-02 (China). Setting key kept as wgs84ToGcj02.
+	 * When true, coordinates are converted to WGS-84 so [currentLocation] is always GPS/WGS-84.
 	 */
 	public var wgs84ToGcj02: Boolean = false
 
@@ -103,6 +103,46 @@ abstract class CarLocationProvider {
 class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, val id4: Boolean): CarLocationProvider() {
 	companion object {
 		private const val TAG = "CdsLocationProvider"
+		/** CDS GPSExtendedInfo.speed uses a 32768-centered encoding; see CDSMetrics.speedGPS */
+		private const val CDS_GPS_SPEED_STATIONARY = 32768.0
+		private const val CDS_GPS_SPEED_MAX_RAW = -24434.0 // ~300 km/h after decode
+		private const val CDS_GPS_SPEED_SCALE = 0.036 // (raw + 32768) * scale → km/h
+		private const val MAX_SPEED_MS = 84f // ~300 km/h; matches CDSMetrics GPS speed ceiling
+		/** Reject null-island / unset GPS that would teleport Extra GPS across the planet */
+		private const val NULL_ISLAND_EPS = 0.01
+		/** Ignore single-sample teleports (CDS glitches / 0,0 flashes) */
+		private const val MAX_JUMP_KM = 1.5
+		private const val MAX_JUMP_WINDOW_MS = 3000L
+
+		fun parseCdsIsGcj02(raw: String?): Boolean {
+			val v = raw?.trim().orEmpty()
+			if (v.equals("true", ignoreCase = true) || v.equals("yes", ignoreCase = true) || v == "1") {
+				return true
+			}
+			if (v.equals("false", ignoreCase = true) || v.equals("no", ignoreCase = true) || v == "0" || v.isEmpty()) {
+				return false
+			}
+			// legacy numeric toggle in dimensions settings (>10 meant "car is GCJ-02")
+			return (v.toIntOrNull() ?: 0) > 10
+		}
+
+		/** Decode CDS GPSExtendedInfo.speed to m/s for Android Location, or null if stationary/invalid. */
+		fun decodeCdsGpsSpeedMs(raw: Double): Float? {
+			if (raw > CDS_GPS_SPEED_MAX_RAW) {
+				// includes 32768 stationary sentinel and positive garbage
+				return null
+			}
+			val kmh = (raw + CDS_GPS_SPEED_STATIONARY) * CDS_GPS_SPEED_SCALE
+			if (kmh < 0.0 || kmh.isNanOrInfinite()) {
+				return null
+			}
+			val ms = (kmh / 3.6).toFloat()
+			return ms.coerceAtMost(MAX_SPEED_MS)
+		}
+
+		fun isNullIsland(latitude: Double, longitude: Double): Boolean {
+			return latitude.absoluteValue < NULL_ISLAND_EPS && longitude.absoluteValue < NULL_ISLAND_EPS
+		}
 	}
 
 	constructor(cdsData: CDSData, id4: Boolean): this(null, cdsData, id4)
@@ -110,6 +150,7 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 	var currentLatLong: LatLong? = null
 	var currentHeading: CarHeading? = null
 	private var hasCdsPosition = false
+	private var lastAcceptedTimeMs = 0L
 
 	init {
 		refreshCoordinateMode()
@@ -144,30 +185,44 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 	}
 
 	private fun refreshCoordinateMode() {
-		// "true" from the phone UI switch, or the older numeric setting where > 10 meant enabled
-		val raw = appSettings?.get(AppSettings.KEYS.wgs84ToGcj02)?.trim().orEmpty()
-		wgs84ToGcj02 = raw.equals("true", ignoreCase = true) || (raw.toIntOrNull() ?: 0) > 10
+		wgs84ToGcj02 = parseCdsIsGcj02(appSettings?.get(AppSettings.KEYS.wgs84ToGcj02))
 	}
 
 	private fun parseGPS() {
+		refreshCoordinateMode()
 		val gpsPosition = cdsData[CDS.NAVIGATION.GPSPOSITION] ?: return
 		val position = gpsPosition.tryAsJsonObject("GPSPosition")
 		val latitude = position?.tryAsJsonPrimitive("latitude")?.tryAsDouble
 		val longitude = position?.tryAsJsonPrimitive("longitude")?.tryAsDouble
-		if (longitude != null && latitude != null && !longitude.isNanOrInfinite() && !latitude.isNanOrInfinite() && longitude.absoluteValue < 180 && latitude.absoluteValue < 90) {
-			if(CoordinateUtil.outOfChina(longitude, latitude)) {
-				currentLatLong = LatLong(latitude, longitude)
-			}else{
-				if(wgs84ToGcj02){
-					val coord = CoordinateUtil.gcj02ToWgs84(longitude, latitude);
-					currentLatLong = LatLong(coord.lat, coord.lng)
-				}else{
-					currentLatLong = LatLong(latitude, longitude)
-				}
-			}
-			hasCdsPosition = true
-			onLocationUpdate()
+		if (longitude == null || latitude == null || longitude.isNanOrInfinite() || latitude.isNanOrInfinite() ||
+				longitude.absoluteValue >= 180 || latitude.absoluteValue >= 90) {
+			return
 		}
+		if (isNullIsland(latitude, longitude)) {
+			Log.w(TAG, "Ignoring CDS GPS null-island $latitude,$longitude")
+			return
+		}
+		val next = if (CoordinateUtil.outOfChina(longitude, latitude)) {
+			LatLong(latitude, longitude)
+		} else if (wgs84ToGcj02) {
+			val coord = CoordinateUtil.gcj02ToWgs84(longitude, latitude)
+			LatLong(coord.lat, coord.lng)
+		} else {
+			LatLong(latitude, longitude)
+		}
+		val previous = currentLatLong
+		val now = System.currentTimeMillis()
+		if (previous != null && hasCdsPosition && now - lastAcceptedTimeMs < MAX_JUMP_WINDOW_MS) {
+			val jumpKm = previous.distanceFrom(next)
+			if (jumpKm > MAX_JUMP_KM) {
+				Log.w(TAG, "Ignoring CDS GPS teleport ${"%.3f".format(jumpKm)}km to $next (was $previous)")
+				return
+			}
+		}
+		currentLatLong = next
+		hasCdsPosition = true
+		lastAcceptedTimeMs = now
+		onLocationUpdate()
 	}
 
 	private fun parseHeading() {
@@ -175,10 +230,13 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 		val position = gpsHeading.tryAsJsonObject("GPSExtendedInfo")
 		val heading = position?.tryAsJsonPrimitive("heading")?.tryAsDouble   // in degrees, needs to be negated for Location usage
 		val headingAdj = if (id4) -1.40625f else -1f
-		val speed = position?.tryAsJsonPrimitive("speed")?.tryAsDouble ?: 0.0  // in kmph
-		val validSpeed = if (speed < 4000) speed else 0
+		val rawSpeed = position?.tryAsJsonPrimitive("speed")?.tryAsDouble
+		val speedMs = rawSpeed?.let { decodeCdsGpsSpeedMs(it) } ?: 0f
 		if (heading != null) {
-			currentHeading = CarHeading(heading.toFloat() * headingAdj, validSpeed.toFloat() / 3.6f)
+			var bearing = heading.toFloat() * headingAdj
+			// normalize to 0..360 like CDSMetrics.heading
+			bearing = ((bearing % 360f) + 360f) % 360f
+			currentHeading = CarHeading(bearing, speedMs)
 			if (hasCdsPosition) {
 				onLocationUpdate()
 			}

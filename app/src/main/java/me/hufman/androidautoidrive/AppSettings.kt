@@ -115,6 +115,8 @@ interface AppSettings {
 		/** Empty = SDK default; pair with AMAP_AUTO_ZOOM_MAX */
 		AMAP_AUTO_ZOOM_MIN("Amap_Auto_Zoom_Min", "", "AMap auto-zoom min level"),
 		AMAP_AUTO_ZOOM_MAX("Amap_Auto_Zoom_Max", "", "AMap auto-zoom max level"),
+		/** false: setExtraGPSData type=1 WGS-84. true: convert to GCJ-02 and pass type=2 */
+		AMAP_EXTRA_GPS_GCJ02("Amap_Extra_Gps_Gcj02", "false", "Feed AMap extra GPS as GCJ-02 instead of WGS-84"),
 		MAP_FPS("Map_Fps", "1", "Map virtual display and car capture frames per second"),
 		AUDIO_SUPPORTS_USB("Audio_Supports_USB", (Build.VERSION.SDK_INT < Build.VERSION_CODES.O).toString(), "The phone is old enough to support USB accessory audio"),
 		AUDIO_FORCE_CONTEXT("Audio_Force_Context", "false", "Force audio context"),

@@ -13,7 +13,6 @@ import android.view.Display
 import android.view.View
 import android.view.WindowManager
 import kotlin.math.roundToInt
-import com.amap.api.location.AMapLocation
 import com.amap.api.navi.*
 import com.amap.api.navi.enums.NaviType
 import com.amap.api.navi.model.AMapCalcRouteResult
@@ -32,9 +31,12 @@ import com.amap.api.navi.enums.AMapNaviParallelRoadStatus
 import me.hufman.androidautoidrive.*
 import me.hufman.androidautoidrive.R
 import me.hufman.androidautoidrive.maps.CarLocationProvider
+import me.hufman.androidautoidrive.maps.CdsLocationProvider
 import me.hufman.androidautoidrive.maps.LatLong
 import me.hufman.androidautoidrive.maps.SimulatedCarLocation
 import me.hufman.androidautoidrive.maps.toGcj02
+import me.hufman.androidautoidrive.maps.AMAP_EXTRA_GPS_TYPE_GCJ02
+import me.hufman.androidautoidrive.maps.AMAP_EXTRA_GPS_TYPE_WGS84
 
 @SuppressLint("Lifecycle")
 class AmapNaviProjection(
@@ -313,7 +315,42 @@ class AmapNaviProjection(
         if (!emulatorNavi) {
             feedExtraGps(location)
         }
+        // Outside active guidance, AMapNaviView will not auto-follow Extra GPS (autoLockCar
+        // is navi-only). Drive the camera from CDS so the full map tracks the car.
+        if (!isNavigating && !emulatorNavi) {
+            followIdleCamera(location)
+        }
         postTryStartRoute()
+    }
+
+    private fun followIdleCamera(location: Location) {
+        if (!isShowing) {
+            return
+        }
+        try {
+            val map = naviView.map ?: return
+            val amap = toAmapMapLocation(location)
+            val target = com.amap.api.maps.model.LatLng(amap.latitude, amap.longitude)
+            val current = map.cameraPosition
+            val zoom = current?.zoom?.takeIf { it.isFinite() && it > 1f } ?: 16f
+            val tilt = when {
+                lastSettings?.mapTilt == true -> 45f
+                lastSettings?.mapTilt == false -> 0f
+                else -> current?.tilt ?: 0f
+            }
+            // lockCar: car-up; otherwise keep current bearing (typically north-up)
+            val bearing = when {
+                lastSettings?.lockCar == true && location.hasBearing() -> location.bearing
+                else -> current?.bearing ?: 0f
+            }
+            map.moveCamera(
+                com.amap.api.maps.CameraUpdateFactory.newCameraPosition(
+                    com.amap.api.maps.model.CameraPosition(target, zoom, tilt, bearing)
+                )
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to follow idle camera", e)
+        }
     }
 
     fun navigateTo(
@@ -431,7 +468,7 @@ class AmapNaviProjection(
         disableAmapPhoneGps()
         try {
             val origin = locationProvider.currentLocation ?: SimulatedCarLocation.create()
-            val amap = toAmapLocation(origin)
+            val amap = toAmapMapLocation(origin)
             naviView.map?.animateCamera(
                 com.amap.api.maps.CameraUpdateFactory.newLatLngZoom(
                     com.amap.api.maps.model.LatLng(amap.latitude, amap.longitude),
@@ -454,7 +491,7 @@ class AmapNaviProjection(
         if (locationProvider.currentLocation == null) {
             Log.w(TAG, "No CDS location, using simulated origin ${origin.latitude},${origin.longitude}")
         }
-        val amapOrigin = toAmapLocation(origin)
+        val amapOrigin = toAmapMapLocation(origin)
         try {
             // destinations come from AMap search or favorites saved from it, so they are already GCJ-02
             val bearing = pendingStartBearingDeg
@@ -508,20 +545,41 @@ class AmapNaviProjection(
 
     private fun feedExtraGps(location: Location) {
         try {
-            val amapLocation = toAmapLocation(location)
+            // Never drive navi from the simulated Dalian fallback or null-island CDS glitches —
+            // those look like teleports and force AMap to recalculate / show absurd speeds.
+            if (SimulatedCarLocation.matches(location)) {
+                return
+            }
+            if (CdsLocationProvider.isNullIsland(location.latitude, location.longitude)) {
+                Log.w(TAG, "Skipping Extra GPS null-island ${location.latitude},${location.longitude}")
+                return
+            }
+            // App-internal location is always WGS-84 after CdsLocationProvider.
+            // AMap setExtraGPSData: type 1 = WGS-84, type 2 = GCJ-02. Passing GCJ with type 1
+            // makes the SDK convert again and shifts the car by hundreds of meters.
+            val extraAsGcj = appSettings[AppSettings.KEYS.AMAP_EXTRA_GPS_GCJ02].toBoolean()
+            val amapLocation = toAmapLocation(location, asGcj02 = extraAsGcj)
+            if (amapLocation.speed > 70f) {
+                amapLocation.speed = 70f
+            }
+            val type = if (extraAsGcj) AMAP_EXTRA_GPS_TYPE_GCJ02 else AMAP_EXTRA_GPS_TYPE_WGS84
             mAMapNavi?.setIsUseExtraGPSData(true)
-            mAMapNavi?.setExtraGPSData(AMapLocation.LOCATION_TYPE_GPS, amapLocation)
+            mAMapNavi?.setExtraGPSData(type, amapLocation)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to feed extra GPS to AMap", e)
         }
     }
 
-    private fun toAmapLocation(location: Location): Location {
+    /** Map camera / drive-route origin: AMap tiles and NaviLatLng are GCJ-02 in China. */
+    private fun toAmapMapLocation(location: Location): Location = toAmapLocation(location, asGcj02 = true)
+
+    private fun toAmapLocation(location: Location, asGcj02: Boolean): Location {
         val amapLocation = Location(location)
-        // CdsLocationProvider always provides WGS-84, AMap expects GCJ-02
-        val gcj02 = location.toLatLong().toGcj02()
-        amapLocation.latitude = gcj02.latitude
-        amapLocation.longitude = gcj02.longitude
+        if (asGcj02) {
+            val gcj02 = location.toLatLong().toGcj02()
+            amapLocation.latitude = gcj02.latitude
+            amapLocation.longitude = gcj02.longitude
+        }
         if (amapLocation.time == 0L) {
             amapLocation.time = System.currentTimeMillis()
         }

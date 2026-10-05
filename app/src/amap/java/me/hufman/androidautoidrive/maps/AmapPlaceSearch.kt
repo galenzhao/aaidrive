@@ -20,7 +20,11 @@ fun LatLonPoint.toLatLong(): LatLong {
 	return LatLong(this.latitude, this.longitude)
 }
 
-/** Car locations are WGS-84 inside the app, but AMap expects GCJ-02 inside China */
+/** AMapNavi.setExtraGPSData type: 1 = WGS-84 / system GPS, 2 = AMap / GCJ-02 */
+const val AMAP_EXTRA_GPS_TYPE_WGS84 = 1
+const val AMAP_EXTRA_GPS_TYPE_GCJ02 = 2
+
+/** App-internal car locations are WGS-84. Map tiles, search, and drive-route APIs want GCJ-02 in China. */
 fun LatLong.toGcj02(): LatLong {
 	if (CoordinateUtil.outOfChina(longitude, latitude)) {
 		return this
