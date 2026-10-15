@@ -46,7 +46,11 @@ class CarDetailedView(val state: RHMIState, val coroutineContext: CoroutineConte
 			}
 		}
 		coroutineScope.launch {
+			var previousCategory: String? = null
 			carInfo.categoryFields.collectLatest { fields ->
+				val currentCategory = carInfo.category.value
+				val categoryChanged = previousCategory != currentCategory
+				previousCategory = currentCategory
 				val rows: List<Flow<Array<Any>>> = fields.windowed(2, 2, true).map { cells ->
 					if (cells.size == 2) {
 						// combine waits for both sides to have a value, so we prepend a placeholder
@@ -60,8 +64,12 @@ class CarDetailedView(val state: RHMIState, val coroutineContext: CoroutineConte
 						cells[0].map { arrayOf(it, "") }
 					}
 				}
-				val emptyTable = BMWRemoting.RHMIDataTable(emptyArray(), false, 0, 0, 0, 0, 2, 2)
-				list.app.setModel(list.model, emptyTable)       // explicitly clear the page when switching categories
+				// Only wipe when the user switches category — clearing on every fields
+				// re-emit (e.g. OBD layout revision) flashes the whole page blank.
+				if (categoryChanged) {
+					val emptyTable = BMWRemoting.RHMIDataTable(emptyArray(), false, 0, 0, 0, 0, 2, 2)
+					list.app.setModel(list.model, emptyTable)
+				}
 				rows.rhmiDataTableFlow { it }
 					.batchDataTables(100)
 					.collect {

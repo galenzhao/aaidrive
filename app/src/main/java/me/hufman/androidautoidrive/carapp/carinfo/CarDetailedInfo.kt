@@ -1,5 +1,6 @@
 package me.hufman.androidautoidrive.carapp.carinfo
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import me.hufman.androidautoidrive.carapp.L
 import me.hufman.androidautoidrive.cds.CDSMetrics
@@ -10,6 +11,7 @@ import kotlin.math.absoluteValue
 import java.text.DateFormat
 import java.util.*
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class CarDetailedInfo(carCapabilities: Map<String, Any?>, cdsMetrics: CDSMetrics) {
 	// general car information
 
@@ -317,10 +319,21 @@ class CarDetailedInfo(carCapabilities: Map<String, Any?>, cdsMetrics: CDSMetrics
 		get() = basicCategories + advancedCategories
 
 	val category = MutableStateFlow(allCategories.keys.first())
-	val categoryFields: Flow<List<Flow<String>>> = combine(
-		category,
-		me.hufman.androidautoidrive.obd.TorqueObdController.pagesRevision
-	) { title, _ ->
-		allCategories[title] ?: emptyList()
+	/**
+	 * Field flows for the selected category.
+	 * CDS pages are stable Flow instances — do not retie them to OBD [pagesRevision], or
+	 * every OBD layout bump restarts the RHMI table (blank flash then full redraw).
+	 * OBD pages rebuild only when their layout revision changes.
+	 */
+	val categoryFields: Flow<List<Flow<String>>> = category.flatMapLatest { title ->
+		val obdPrefix = L.CARINFO_TITLE_OBD
+		if (title == obdPrefix || title.startsWith("$obdPrefix ")) {
+			me.hufman.androidautoidrive.obd.TorqueObdController.pagesRevision.map {
+				me.hufman.androidautoidrive.obd.TorqueObdController.buildCategoryPages()[title]
+					?: emptyList()
+			}
+		} else {
+			flowOf(allCategories[title] ?: emptyList())
+		}
 	}
 }

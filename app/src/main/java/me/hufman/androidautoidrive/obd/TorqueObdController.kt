@@ -45,6 +45,10 @@ object TorqueObdController {
 	private val _pagesRevision = MutableStateFlow(0)
 	val pagesRevision: StateFlow<Int> = _pagesRevision.asStateFlow()
 
+	/** Last OBD layout inputs that were applied — used to avoid spurious pagesRevision bumps. */
+	private var lastLayoutEnabled = false
+	private var lastLayoutSelected: List<String> = emptyList()
+
 	private val metaCache = LinkedHashMap<String, ObdPidInfo>()
 	private val pollRunnable = object : Runnable {
 		override fun run() {
@@ -93,8 +97,16 @@ object TorqueObdController {
 
 	private fun applySettings() {
 		val enabled = isEnabled()
-		_selectedIds.value = readSelectedIds()
-		_pagesRevision.value = _pagesRevision.value + 1
+		val newSelected = readSelectedIds()
+		// Only bump when OBD page layout inputs change. Any AppSettings broadcast used to
+		// increment pagesRevision and CarDetailedView wiped the whole RHMI list (visible flash).
+		val layoutChanged = enabled != lastLayoutEnabled || newSelected != lastLayoutSelected
+		lastLayoutEnabled = enabled
+		lastLayoutSelected = newSelected
+		_selectedIds.value = newSelected
+		if (layoutChanged) {
+			_pagesRevision.value = _pagesRevision.value + 1
+		}
 
 		if (!enabled) {
 			stopPolling()

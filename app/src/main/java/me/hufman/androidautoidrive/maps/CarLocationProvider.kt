@@ -136,18 +136,31 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 			return (v.toIntOrNull() ?: 0) > 10
 		}
 
-		/** Decode CDS GPSExtendedInfo.speed to m/s for Android Location, or null if stationary/invalid. */
+		/**
+		 * Decode CDS GPSExtendedInfo.speed to m/s for Android Location, or null if stationary/invalid.
+		 *
+		 * Two on-wire forms show up in the wild:
+		 * - Signed 32768-centered encoding (CDSMetrics.speedGPS): raw <= -24434 → km/h via (raw+32768)*0.036
+		 * - Plain km/h (legacy Extra-GPS path used `speed < 4000`): 0..300
+		 * The stationary / no-fix sentinel is 32768 (and other large positives).
+		 */
 		fun decodeCdsGpsSpeedMs(raw: Double): Float? {
-			if (raw > CDS_GPS_SPEED_MAX_RAW) {
-				// includes 32768 stationary sentinel and positive garbage
+			if (raw.isNanOrInfinite()) {
 				return null
 			}
-			val kmh = (raw + CDS_GPS_SPEED_STATIONARY) * CDS_GPS_SPEED_SCALE
+			val kmh = when {
+				// Encoded form used by CDSMetrics.speedGPS
+				raw <= CDS_GPS_SPEED_MAX_RAW -> (raw + CDS_GPS_SPEED_STATIONARY) * CDS_GPS_SPEED_SCALE
+				// Stationary / startup garbage (includes 32768 sentinel)
+				raw >= CDS_GPS_SPEED_STATIONARY - 0.5 -> return null
+				// Plain km/h from cars that do not use the signed encoding
+				raw in 0.0..300.0 -> raw
+				else -> return null
+			}
 			if (kmh < 0.0 || kmh.isNanOrInfinite()) {
 				return null
 			}
-			val ms = (kmh / 3.6).toFloat()
-			return ms.coerceAtMost(MAX_SPEED_MS)
+			return (kmh / 3.6).toFloat().coerceAtMost(MAX_SPEED_MS)
 		}
 
 		/** True when CDS reports the unset / null-island sentinel on both axes. */

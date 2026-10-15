@@ -113,7 +113,10 @@ class CdsLocationProviderTest {
 	@Test
 	fun testDecodeCdsGpsSpeed() {
 		assertNull(CdsLocationProvider.decodeCdsGpsSpeedMs(32768.0))
-		assertNull(CdsLocationProvider.decodeCdsGpsSpeedMs(0.0))
+		// Plain 0 km/h is valid stationary (not the encoded sentinel)
+		val ms0 = CdsLocationProvider.decodeCdsGpsSpeedMs(0.0)
+		assertNotNull(ms0)
+		assertEquals(0f, ms0!!, 0.01f)
 		// ~100 km/h → raw ≈ 100/0.036 - 32768
 		val raw100 = 100.0 / 0.036 - 32768.0
 		val ms = CdsLocationProvider.decodeCdsGpsSpeedMs(raw100)
@@ -123,6 +126,12 @@ class CdsLocationProviderTest {
 		val ms300 = CdsLocationProvider.decodeCdsGpsSpeedMs(-24434.0)
 		assertNotNull(ms300)
 		assertEquals(300f / 3.6f, ms300!!, 1f)
+		// Plain km/h (cars that do not use the signed encoding)
+		val plain80 = CdsLocationProvider.decodeCdsGpsSpeedMs(80.0)
+		assertNotNull(plain80)
+		assertEquals(80f / 3.6f, plain80!!, 0.05f)
+		assertNull(CdsLocationProvider.decodeCdsGpsSpeedMs(4000.0))
+		assertNull(CdsLocationProvider.decodeCdsGpsSpeedMs(Double.NaN))
 	}
 
 	@Test
