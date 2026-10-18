@@ -199,6 +199,9 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 
 	var currentLatLong: LatLong? = null
 	var currentHeading: CarHeading? = null
+	/** CDS DRIVING.SPEEDACTUAL in m/s — same source as car-info speed (preferred over GPSExtendedInfo). */
+	var currentSpeedActualMs: Float? = null
+		private set
 	private var hasCdsPosition = false
 	private var lastAcceptedTimeMs = 0L
 	private var pendingJump: LatLong? = null
@@ -212,6 +215,7 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 		refreshCoordinateMode()
 		parseGPS()
 		parseHeading()
+		parseSpeedActual()
 		// slow background updates, start() subscribes for fast updates while the map is in use
 		cdsData.addEventHandler(CDS.NAVIGATION.GPSPOSITION, 10000, object: CDSEventHandler {
 			override fun onPropertyChangedEvent(property: CDSProperty, propertyValue: JsonObject) {
@@ -223,6 +227,11 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 				parseHeading()
 			}
 		})
+		cdsData.addEventHandler(CDS.DRIVING.SPEEDACTUAL, 10000, object: CDSEventHandler {
+			override fun onPropertyChangedEvent(property: CDSProperty, propertyValue: JsonObject) {
+				parseSpeedActual()
+			}
+		})
 	}
 
 	override fun start() {
@@ -232,6 +241,9 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 		}
 		cdsData.subscriptions[CDS.NAVIGATION.GPSEXTENDEDINFO] = {
 			parseHeading()
+		}
+		cdsData.subscriptions[CDS.DRIVING.SPEEDACTUAL] = {
+			parseSpeedActual()
 		}
 		if (hasCdsPosition) {
 			parseGPS()
@@ -313,6 +325,7 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 		val heading = position?.tryAsJsonPrimitive("heading")?.tryAsDouble   // in degrees, needs to be negated for Location usage
 		val headingAdj = if (id4) -1.40625f else -1f
 		val rawSpeed = position?.tryAsJsonPrimitive("speed")?.tryAsDouble
+		// Fallback only — Extra GPS prefers SPEEDACTUAL (see onLocationUpdate).
 		val speedMs = rawSpeed?.let { decodeCdsGpsSpeedMs(it) } ?: 0f
 		if (heading != null) {
 			var bearing = heading.toFloat() * headingAdj
@@ -325,6 +338,22 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 				// extended info became valid — retry GPSPosition for first lock
 				parseGPS()
 			}
+		}
+	}
+
+	/**
+	 * Car-info "speed" uses CDS.DRIVING.SPEEDACTUAL (raw km/h). GPSExtendedInfo.speed on many
+	 * cars stays at the 32768 sentinel, so Extra GPS must use this channel or AMap shows 0.
+	 */
+	private fun parseSpeedActual() {
+		val payload = cdsData[CDS.DRIVING.SPEEDACTUAL] ?: return
+		val rawKmh = payload.tryAsJsonPrimitive("speedActual")?.tryAsDouble ?: return
+		if (rawKmh.isNanOrInfinite() || rawKmh < 0.0 || rawKmh > 300.0) {
+			return
+		}
+		currentSpeedActualMs = (rawKmh / 3.6).toFloat().coerceAtMost(MAX_SPEED_MS)
+		if (hasCdsPosition) {
+			onLocationUpdate()
 		}
 	}
 
@@ -343,10 +372,17 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 				it.longitude = latLong.longitude
 				it.time = System.currentTimeMillis()
 				it.elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
+				// AMap Extra GPS requires accuracy; CDS has no meter accuracy — keep a fixed HDOP-like value.
 				it.accuracy = 8f
 				if (heading != null) {
 					it.bearing = heading.heading
-					it.speed = heading.speed
+				}
+				// Prefer dashboard speed (SPEEDACTUAL); GPSExtendedInfo.speed is often unset.
+				it.speed = currentSpeedActualMs ?: heading?.speed ?: 0f
+				// Same source as car-info altitude (GPSExtendedInfo.altitude, skip no-fix sentinel).
+				val altitude = lastAltitude
+				if (!isCdsAltitudeInvalid(altitude)) {
+					it.altitude = altitude!!.toDouble()
 				}
 			}
 		} else {
@@ -358,5 +394,6 @@ class CdsLocationProvider(val appSettings: AppSettings?, val cdsData: CDSData, v
 	override fun stop() {
 		cdsData.subscriptions[CDS.NAVIGATION.GPSPOSITION] = null
 		cdsData.subscriptions[CDS.NAVIGATION.GPSEXTENDEDINFO] = null
+		cdsData.subscriptions[CDS.DRIVING.SPEEDACTUAL] = null
 	}
 }

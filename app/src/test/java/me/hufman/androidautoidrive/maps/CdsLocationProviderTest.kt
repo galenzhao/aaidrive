@@ -188,6 +188,7 @@ class CdsLocationProviderTest {
 		provider.start()
 		assertNotNull(cdsData.subscriptions[CDS.NAVIGATION.GPSPOSITION])
 		assertNotNull(cdsData.subscriptions[CDS.NAVIGATION.GPSEXTENDEDINFO])
+		assertNotNull(cdsData.subscriptions[CDS.DRIVING.SPEEDACTUAL])
 		assertTrue(provider.isSimulated)
 		assertEquals(SimulatedCarLocation.LATITUDE, provider.currentLocation?.latitude)
 		assertEquals(SimulatedCarLocation.LONGITUDE, provider.currentLocation?.longitude)
@@ -210,6 +211,7 @@ class CdsLocationProviderTest {
 		provider.stop()
 		assertNull(cdsData.subscriptions[CDS.NAVIGATION.GPSPOSITION])
 		assertNull(cdsData.subscriptions[CDS.NAVIGATION.GPSEXTENDEDINFO])
+		assertNull(cdsData.subscriptions[CDS.DRIVING.SPEEDACTUAL])
 
 		val gpsPositionNew = JsonObject().apply {
 			add("GPSPosition", JsonObject().apply {
@@ -253,6 +255,45 @@ class CdsLocationProviderTest {
 		cdsData.onPropertyChangedEvent(CDS.NAVIGATION.GPSPOSITION, dalian)
 		assertEquals(38.91, provider.currentLatLong?.latitude)
 		assertEquals(121.61, provider.currentLatLong?.longitude)
+	}
+
+	@Test
+	fun testSpeedActualPreferredOverGpsExtendedSpeed() {
+		// GPSExtendedInfo.speed stays at stationary sentinel (car-info GPS speed empty),
+		// but SPEEDACTUAL matches the dashboard / car-info speed page.
+		cdsData.onPropertyChangedEvent(CDS.NAVIGATION.GPSPOSITION, gpsPosition)
+		cdsData.onPropertyChangedEvent(CDS.NAVIGATION.GPSEXTENDEDINFO, gpsHeading)
+		val provider = CdsLocationProvider(cdsData, false)
+		assertEquals(0f, provider.currentLocation?.speed)
+
+		val speedActual = JsonObject().apply {
+			addProperty("speedActual", 72.0)
+		}
+		cdsData.onPropertyChangedEvent(CDS.DRIVING.SPEEDACTUAL, speedActual)
+		assertEquals(72f / 3.6f, provider.currentSpeedActualMs!!, 0.05f)
+		assertEquals(72f / 3.6f, provider.currentLocation?.speed!!, 0.05f)
+		// Heading still carries decoded GPS speed (0 from sentinel) as fallback only
+		assertEquals(0f, provider.currentHeading?.speed)
+	}
+
+	@Test
+	fun testAltitudeFedWhenValid() {
+		cdsData.onPropertyChangedEvent(CDS.NAVIGATION.GPSPOSITION, gpsPosition)
+		// gpsHeading fixture uses altitude 65530 (invalid sentinel) — no altitude on Location
+		cdsData.onPropertyChangedEvent(CDS.NAVIGATION.GPSEXTENDEDINFO, gpsHeading)
+		val provider = CdsLocationProvider(cdsData, false)
+		assertEquals(0.0, provider.currentLocation?.altitude ?: 0.0, 0.01)
+
+		val withAltitude = JsonObject().apply {
+			add("GPSExtendedInfo", JsonObject().apply {
+				addProperty("altitude", 42)
+				addProperty("heading", 144)
+				addProperty("quality", 443)
+				addProperty("speed", 32768)
+			})
+		}
+		cdsData.onPropertyChangedEvent(CDS.NAVIGATION.GPSEXTENDEDINFO, withAltitude)
+		assertEquals(42.0, provider.currentLocation?.altitude!!, 0.01)
 	}
 
 	@Test

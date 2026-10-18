@@ -51,6 +51,7 @@
     <string name="menu_assistants">Assistants</string>
     <string name="menu_calendar">Calendar</string>
     <string name="menu_maps">Maps</string>
+    <string name="menu_map_quick_destinations">Favorite destinations</string>
     <string name="menu_navigation">Navigation</string>
     <string name="menu_addons">Addons</string>
     <string name="menu_settings">Settings</string>

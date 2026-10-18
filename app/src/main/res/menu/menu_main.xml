@@ -35,6 +35,11 @@
             android:title="@string/menu_maps" />
 
         <item
+            android:id="@+id/nav_map_quick_destinations"
+            android:icon="@drawable/ic_tag_feather"
+            android:title="@string/menu_map_quick_destinations" />
+
+        <item
             android:id="@+id/nav_music"
             android:icon="@drawable/ic_music_feather"
             android:title="@string/menu_music" />

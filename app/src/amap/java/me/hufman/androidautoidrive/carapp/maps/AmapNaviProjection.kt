@@ -14,6 +14,7 @@ import android.view.View
 import android.view.WindowManager
 import kotlin.math.roundToInt
 import com.amap.api.navi.*
+import com.amap.api.navi.enums.AMapNaviViewShowMode
 import com.amap.api.navi.enums.NaviType
 import com.amap.api.navi.model.AMapCalcRouteResult
 import com.amap.api.navi.model.AMapLaneInfo
@@ -55,6 +56,8 @@ class AmapNaviProjection(
         /** Soft fallback when onInitNaviSuccess never arrives (common after warmUpNavi). */
         private const val INIT_RETRY_MS = 500L
         private const val NAVI_INFO_MIN_INTERVAL_MS = 800L
+        /** Retry startNavi once — after stopNavi the first call can leave the view on ROUTE overview. */
+        private const val START_NAVI_RETRY_MS = 400L
     }
 
     val naviView: AMapNaviView by lazy { findViewById(R.id.naviView) }
@@ -191,7 +194,7 @@ class AmapNaviProjection(
 
     fun destroy() {
         Log.i(TAG, "NaviProjection Destroyed")
-        handler.removeCallbacksAndMessages(null)
+        handler.removeCallbacksAndMessages(null) // includes startNaviRetryRunnable / route timeouts
         naviReady = false
         naviInitFailed = false
         pendingDestination = null
@@ -429,6 +432,7 @@ class AmapNaviProjection(
         awaitingSecondRouteCallback = false
         handler.removeCallbacks(routeTimeoutRunnable)
         handler.removeCallbacks(secondRouteTimeoutRunnable)
+        handler.removeCallbacks(startNaviRetryRunnable)
         try {
             // startNavi can run before onStartNavi flips isNavigating; still stop the engine.
             if (shouldStop) {
@@ -439,6 +443,9 @@ class AmapNaviProjection(
         }
         isNavigating = false
         currentDestination = null
+        // onNaviCancel goes straight here — keep MapAppMode in sync with controller.stopNavigation
+        mapAppMode.currentNavDestination = null
+        mapAppMode.finishRouteSelection()
         AmapNaviGuidance.clear()
         // stopNavi freezes guidance updates but leaves the navi chrome/route on screen
         resetIdleMap()
@@ -766,7 +773,10 @@ class AmapNaviProjection(
 
     override fun onStartNavi(type: Int) {
         Log.i(TAG, "Navigation started, type: $type")
+        handler.removeCallbacks(startNaviRetryRunnable)
         isNavigating = true
+        // Leave ROUTE overview (full path + "开始导航") for lock-car guidance
+        enterGuidanceShowMode()
         // Restore guidance chrome / auto-drawn route now that navi is active
         applySettings(AmapSettings.build(appSettings, locationProvider.currentLocation?.toLatLong()), force = true)
     }
@@ -1010,13 +1020,21 @@ class AmapNaviProjection(
         }
     }
 
-    private fun startActiveNavi() {
+    private val startNaviRetryRunnable = Runnable {
+        if (isNavigating) return@Runnable
+        Log.w(TAG, "Retrying startNavi — still not in guidance after first attempt")
+        naviStartRequested = false
+        startActiveNavi(isRetry = true)
+    }
+
+    private fun startActiveNavi(isRetry: Boolean = false) {
         if (naviStartRequested) {
             return
         }
         naviStartRequested = true
         disableAmapPhoneGps()
         val origin = locationProvider.currentLocation ?: SimulatedCarLocation.create()
+        val naviType: Int
         if (locationProvider.isSimulated || SimulatedCarLocation.matches(origin)) {
             emulatorNavi = true
             try {
@@ -1030,12 +1048,38 @@ class AmapNaviProjection(
                 Log.w(TAG, "Failed to set emulator navi speed", e)
             }
             Log.i(TAG, "Starting emulator navigation from ${origin.latitude},${origin.longitude}")
-            mAMapNavi?.startNavi(NaviType.EMULATOR)
+            naviType = NaviType.EMULATOR
         } else {
             emulatorNavi = false
             feedExtraGps(origin)
             Log.i(TAG, "Starting GPS navigation with CDS extra GPS")
-            mAMapNavi?.startNavi(NaviType.GPS)
+            naviType = NaviType.GPS
+        }
+        val started = try {
+            mAMapNavi?.startNavi(naviType) == true
+        } catch (e: Exception) {
+            Log.w(TAG, "startNavi threw", e)
+            false
+        }
+        // After cancel+replan, AMap often stays on ROUTE overview (full path + 开始导航)
+        // until show mode is forced to lock-car — don't wait only for onStartNavi.
+        enterGuidanceShowMode()
+        if (!started) {
+            Log.w(TAG, "startNavi($naviType) returned false (retry=$isRetry)")
+            naviStartRequested = false
+            if (!isRetry) {
+                handler.removeCallbacks(startNaviRetryRunnable)
+                handler.postDelayed(startNaviRetryRunnable, START_NAVI_RETRY_MS)
+            }
+        }
+    }
+
+    /** Switch AMapNaviView off ROUTE overview into guidance lock-car framing. */
+    private fun enterGuidanceShowMode() {
+        try {
+            naviView.setShowMode(AMapNaviViewShowMode.SHOW_MODE_LOCK_CAR)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to enter lock-car show mode", e)
         }
     }
 
@@ -1129,6 +1173,7 @@ class AmapNaviProjection(
 
     override fun onNaviCancel() {
         Log.i(TAG, "Navigation cancelled from view")
+        // Same path as RHMI stop — clears routes + MapAppMode so the next plan can startNavi
         stopNavigation()
     }
 

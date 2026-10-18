@@ -45,6 +45,7 @@
     <string name="menu_assistants">助手</string>
     <string name="menu_calendar">日历</string>
     <string name="menu_maps">地图</string>
+    <string name="menu_map_quick_destinations">常用目的地</string>
     <string name="menu_navigation">导航</string>
     <string name="menu_addons">应用拓展插件</string>
     <string name="menu_settings">设置</string>

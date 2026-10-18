@@ -105,7 +105,9 @@ class NavHostActivity: AppCompatActivity() {
 		val mapVisibility = themeAttrs.getInt(0, 0)
 		themeAttrs.recycle()
 		val navView = findViewById<NavigationView>(R.id.nav_view)
-		navView.menu.findItem(R.id.nav_maps).isVisible = mapVisibility == View.VISIBLE
+		val mapsVisible = mapVisibility == View.VISIBLE
+		navView.menu.findItem(R.id.nav_maps).isVisible = mapsVisible
+		navView.menu.findItem(R.id.nav_map_quick_destinations).isVisible = mapsVisible
 
 		val advancedSetting = BooleanLiveSetting(this, AppSettings.KEYS.SHOW_ADVANCED_SETTINGS)
 		advancedSetting.observe(this, Observer {
